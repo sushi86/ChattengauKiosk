@@ -4,16 +4,34 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-@Database(entities = [Article::class], version = 1)
+@Database(entities = [Article::class, Sale::class], version = 2)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun articleDao(): ArticleDao
+    abstract fun saleDao(): SaleDao
 
     companion object {
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS sales (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        articleName TEXT NOT NULL,
+                        articleEmoji TEXT NOT NULL,
+                        articlePrice REAL NOT NULL,
+                        quantity INTEGER NOT NULL,
+                        paymentMethod TEXT NOT NULL,
+                        timestamp INTEGER NOT NULL
+                    )
+                """.trimIndent())
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -24,6 +42,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "kassierapp_db"
                 )
+                    .addMigrations(MIGRATION_1_2)
                     .addCallback(PrepopulateCallback())
                     .build()
                 INSTANCE = instance
