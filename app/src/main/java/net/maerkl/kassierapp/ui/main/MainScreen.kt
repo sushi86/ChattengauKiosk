@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -36,15 +35,16 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import net.maerkl.kassierapp.R
 import net.maerkl.kassierapp.data.local.Article
 import net.maerkl.kassierapp.ui.theme.Green900
 
@@ -53,17 +53,33 @@ import net.maerkl.kassierapp.ui.theme.Green900
 fun MainScreen(
     viewModel: MainViewModel,
     snackbarHostState: SnackbarHostState,
+    sumUpLoggedIn: Boolean,
     onNavigateToSettings: () -> Unit
 ) {
     val articles by viewModel.articles.collectAsState(initial = emptyList())
     val cart by viewModel.cart.collectAsState()
-    var showClearDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("\uD83C\uDF7A Sportverein Kasse", color = Color.White) },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            painter = painterResource(R.drawable.fsg_logo),
+                            contentDescription = "FSG Logo",
+                            modifier = Modifier.size(36.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("FSG Chattengau/Metze", color = Color.White)
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(
+                            text = if (sumUpLoggedIn) "\u2705 Terminal bereit" else "\u274C Nicht verbunden",
+                            color = if (sumUpLoggedIn) Color(0xFF90EE90) else Color(0xFFFF6B6B),
+                            fontSize = 13.sp
+                        )
+                    }
+                },
                 actions = {
                     TextButton(onClick = onNavigateToSettings) {
                         Text("\u2699\uFE0F Einstellungen", color = Color.White)
@@ -97,29 +113,14 @@ fun MainScreen(
                     cart = cart,
                     total = viewModel.cartTotal,
                     onRemove = { viewModel.removeFromCart(it) },
-                    onClear = { showClearDialog = true },
+                    onClear = { viewModel.clearCart() },
+                    onCashPayment = { viewModel.cashPayment() },
                     onCheckout = { viewModel.checkout() }
                 )
             }
         }
     }
 
-    if (showClearDialog) {
-        AlertDialog(
-            onDismissRequest = { showClearDialog = false },
-            title = { Text("Warenkorb leeren?") },
-            text = { Text("Möchten Sie den Warenkorb wirklich leeren?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.clearCart()
-                    showClearDialog = false
-                }) { Text("Ja") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showClearDialog = false }) { Text("Nein") }
-            }
-        )
-    }
 }
 
 @Composable
@@ -155,6 +156,7 @@ private fun CartPanel(
     total: Double,
     onRemove: (Article) -> Unit,
     onClear: () -> Unit,
+    onCashPayment: () -> Unit,
     onCheckout: () -> Unit
 ) {
     Card(
@@ -193,14 +195,19 @@ private fun CartPanel(
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp
                 )
-                Row {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = onClear,
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                     ) {
                         Text("\uD83D\uDDD1\uFE0F Leeren")
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = onCashPayment,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
+                    ) {
+                        Text("\uD83D\uDCB5 Barzahlung")
+                    }
                     Button(
                         onClick = onCheckout,
                         colors = ButtonDefaults.buttonColors(containerColor = Green900)
