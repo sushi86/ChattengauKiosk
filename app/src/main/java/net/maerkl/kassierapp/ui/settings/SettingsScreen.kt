@@ -55,7 +55,8 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     onNavigateBack: () -> Unit,
     onLogin: () -> Unit,
-    onOpenCardReader: () -> Unit
+    onOpenCardReader: () -> Unit,
+    onNavigateToStatistics: () -> Unit
 ) {
     val articles by viewModel.allArticles.collectAsState(initial = emptyList())
     val affiliateKey by viewModel.affiliateKey.collectAsState()
@@ -199,6 +200,20 @@ fun SettingsScreen(
                         }
                     }
                 }
+            }
+
+            // Statistics Section
+            item {
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Statistik", style = MaterialTheme.typography.titleLarge)
+            }
+
+            item {
+                Button(
+                    onClick = onNavigateToStatistics,
+                    colors = ButtonDefaults.buttonColors(containerColor = Green900)
+                ) { Text("\uD83D\uDCCA Verkaufsstatistik") }
             }
 
             // PIN Change Section

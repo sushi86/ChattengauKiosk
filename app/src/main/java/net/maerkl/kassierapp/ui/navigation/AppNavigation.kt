@@ -16,12 +16,16 @@ import net.maerkl.kassierapp.ui.main.MainScreen
 import net.maerkl.kassierapp.ui.main.MainViewModel
 import net.maerkl.kassierapp.ui.settings.SettingsScreen
 import net.maerkl.kassierapp.ui.settings.SettingsViewModel
+import net.maerkl.kassierapp.ui.statistics.StatisticsScreen
+import net.maerkl.kassierapp.ui.statistics.StatisticsViewModel
 
 @Composable
 fun AppNavigation(
     snackbarHostState: SnackbarHostState,
+    sumUpLoggedIn: Boolean,
     onLogin: () -> Unit,
-    onOpenCardReader: () -> Unit
+    onOpenCardReader: () -> Unit,
+    onShareIntent: (android.content.Intent) -> Unit
 ) {
     val navController = rememberNavController()
     val mainViewModel: MainViewModel = viewModel()
@@ -34,6 +38,7 @@ fun AppNavigation(
             MainScreen(
                 viewModel = mainViewModel,
                 snackbarHostState = snackbarHostState,
+                sumUpLoggedIn = sumUpLoggedIn,
                 onNavigateToSettings = { showPinDialog = true }
             )
         }
@@ -42,7 +47,16 @@ fun AppNavigation(
                 viewModel = settingsViewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onLogin = onLogin,
-                onOpenCardReader = onOpenCardReader
+                onOpenCardReader = onOpenCardReader,
+                onNavigateToStatistics = { navController.navigate("statistics") }
+            )
+        }
+        composable("statistics") {
+            val statisticsViewModel: StatisticsViewModel = viewModel()
+            StatisticsScreen(
+                viewModel = statisticsViewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onShareCsv = onShareIntent
             )
         }
     }
