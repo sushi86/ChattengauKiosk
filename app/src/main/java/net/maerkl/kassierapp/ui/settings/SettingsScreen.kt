@@ -118,7 +118,7 @@ fun SettingsScreen(
                             modifier = Modifier.height((articles.size * 56).coerceAtMost(300).dp)
                         ) {
                             items(articles, key = { it.id }) { article ->
-                                ReorderableItem(reorderState, key = article.id) { isDragging ->
+                                ReorderableItem(reorderState, key = article.id) {
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
