@@ -11,12 +11,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import net.maerkl.kassierapp.KassierApplication
 import net.maerkl.kassierapp.data.local.Article
+import net.maerkl.kassierapp.data.local.Sale
 
 data class CartItem(val article: Article, val quantity: Int)
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as KassierApplication
     val articles = app.database.articleDao().getActiveArticles()
+    private val saleDao = app.database.saleDao()
 
     private val _cart = MutableStateFlow<List<CartItem>>(emptyList())
     val cart: StateFlow<List<CartItem>> = _cart.asStateFlow()
@@ -68,7 +70,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun cashPayment() {
+        if (_cart.value.isEmpty()) return
+        saveSales("BAR")
+        clearCart()
+        viewModelScope.launch {
+            _snackbarMessage.emit("Barzahlung erfasst")
+        }
+    }
+
     fun onPaymentSuccess() {
+        saveSales("KARTE")
         clearCart()
         viewModelScope.launch {
             _snackbarMessage.emit("Zahlung erfolgreich")
@@ -78,6 +90,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun onPaymentFailed() {
         viewModelScope.launch {
             _snackbarMessage.emit("Zahlung fehlgeschlagen")
+        }
+    }
+
+    private fun saveSales(paymentMethod: String) {
+        val now = System.currentTimeMillis()
+        val sales = _cart.value.map { item ->
+            Sale(
+                articleName = item.article.name,
+                articleEmoji = item.article.emoji,
+                articlePrice = item.article.price,
+                quantity = item.quantity,
+                paymentMethod = paymentMethod,
+                timestamp = now
+            )
+        }
+        viewModelScope.launch {
+            saleDao.insertAll(sales)
         }
     }
 }
