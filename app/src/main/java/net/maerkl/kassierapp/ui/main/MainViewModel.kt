@@ -1,0 +1,83 @@
+package net.maerkl.kassierapp.ui.main
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import net.maerkl.kassierapp.KassierApplication
+import net.maerkl.kassierapp.data.local.Article
+
+data class CartItem(val article: Article, val quantity: Int)
+
+class MainViewModel(application: Application) : AndroidViewModel(application) {
+    private val app = application as KassierApplication
+    val articles = app.database.articleDao().getActiveArticles()
+
+    private val _cart = MutableStateFlow<List<CartItem>>(emptyList())
+    val cart: StateFlow<List<CartItem>> = _cart.asStateFlow()
+
+    private val _checkoutAmount = MutableSharedFlow<Double>()
+    val checkoutAmount = _checkoutAmount.asSharedFlow()
+
+    private val _snackbarMessage = MutableSharedFlow<String>()
+    val snackbarMessage = _snackbarMessage.asSharedFlow()
+
+    val cartTotal: Double
+        get() = _cart.value.sumOf { it.article.price * it.quantity }
+
+    fun addToCart(article: Article) {
+        val current = _cart.value.toMutableList()
+        val index = current.indexOfFirst { it.article.id == article.id }
+        if (index >= 0) {
+            current[index] = current[index].copy(quantity = current[index].quantity + 1)
+        } else {
+            current.add(CartItem(article, 1))
+        }
+        _cart.value = current
+    }
+
+    fun removeFromCart(article: Article) {
+        val current = _cart.value.toMutableList()
+        val index = current.indexOfFirst { it.article.id == article.id }
+        if (index >= 0) {
+            val item = current[index]
+            if (item.quantity > 1) {
+                current[index] = item.copy(quantity = item.quantity - 1)
+            } else {
+                current.removeAt(index)
+            }
+            _cart.value = current
+        }
+    }
+
+    fun clearCart() {
+        _cart.value = emptyList()
+    }
+
+    fun checkout() {
+        val total = cartTotal
+        if (total > 0) {
+            viewModelScope.launch {
+                _checkoutAmount.emit(total)
+            }
+        }
+    }
+
+    fun onPaymentSuccess() {
+        clearCart()
+        viewModelScope.launch {
+            _snackbarMessage.emit("Zahlung erfolgreich")
+        }
+    }
+
+    fun onPaymentFailed() {
+        viewModelScope.launch {
+            _snackbarMessage.emit("Zahlung fehlgeschlagen")
+        }
+    }
+}
