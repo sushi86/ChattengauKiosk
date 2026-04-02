@@ -2,12 +2,14 @@ package net.maerkl.kassierapp.ui.navigation
 
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -35,6 +37,17 @@ fun AppNavigation(
     val settingsViewModel: SettingsViewModel = viewModel()
     var showPinDialog by remember { mutableStateOf(false) }
     val pin by settingsViewModel.pin.collectAsState()
+
+    // Kiosk automatisch fortsetzen wenn Main-Screen erreicht wird (auch bei System-Back-Gesture)
+    DisposableEffect(navController) {
+        val listener = NavController.OnDestinationChangedListener { _, dest, _ ->
+            if (dest.route == "main") {
+                onResumeKiosk()
+            }
+        }
+        navController.addOnDestinationChangedListener(listener)
+        onDispose { navController.removeOnDestinationChangedListener(listener) }
+    }
 
     NavHost(navController = navController, startDestination = "main") {
         composable("main") {
