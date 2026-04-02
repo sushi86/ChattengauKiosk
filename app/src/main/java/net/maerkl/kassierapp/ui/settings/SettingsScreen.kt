@@ -2,26 +2,20 @@ package net.maerkl.kassierapp.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -38,46 +32,28 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import net.maerkl.kassierapp.data.local.Article
-import net.maerkl.kassierapp.data.local.ArticleCollection
-import net.maerkl.kassierapp.ui.components.ArticleDialog
 import net.maerkl.kassierapp.ui.theme.Green900
-import sh.calvin.reorderable.ReorderableColumn
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
     onNavigateBack: () -> Unit,
     onLogin: () -> Unit,
     onOpenCardReader: () -> Unit,
-    onNavigateToStatistics: () -> Unit
+    onNavigateToStatistics: () -> Unit,
+    onNavigateToArticles: () -> Unit
 ) {
-    val articles by viewModel.allArticles.collectAsState(initial = emptyList())
     val affiliateKey by viewModel.affiliateKey.collectAsState()
     val oauthToken by viewModel.oauthToken.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    var editingArticle by remember { mutableStateOf<Article?>(null) }
-    var showAddDialog by remember { mutableStateOf(false) }
     var showPinChangeDialog by remember { mutableStateOf(false) }
-    var showDeleteDialog by remember { mutableStateOf<Article?>(null) }
-    var showResetDialog by remember { mutableStateOf(false) }
-
-    val collections by viewModel.allCollections.collectAsState(initial = emptyList())
-    val activeCollectionId by viewModel.activeCollectionId.collectAsState()
-
-    var showAddCollectionDialog by remember { mutableStateOf(false) }
-    var showRenameCollectionDialog by remember { mutableStateOf<ArticleCollection?>(null) }
-    var showDeleteCollectionDialog by remember { mutableStateOf<ArticleCollection?>(null) }
 
     var editAffiliateKey by remember(affiliateKey) { mutableStateOf(affiliateKey) }
     var editOauthToken by remember(oauthToken) { mutableStateOf(oauthToken) }
@@ -95,7 +71,7 @@ fun SettingsScreen(
                 title = { Text("\u2699\uFE0F Einstellungen", color = Color.White) },
                 navigationIcon = {
                     TextButton(onClick = onNavigateBack) {
-                        Text("\u2190 Zurück", color = Color.White)
+                        Text("\u2190 Zur\u00FCck", color = Color.White)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Green900)
@@ -114,104 +90,11 @@ fun SettingsScreen(
                 Text("Artikelverwaltung", style = MaterialTheme.typography.titleLarge)
             }
 
-            // Collection picker
             item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(8.dp)) {
-                        Text("Collections", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(8.dp))
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            collections.forEach { collection ->
-                                val isActive = collection.id == activeCollectionId
-                                FilterChip(
-                                    selected = isActive,
-                                    onClick = { viewModel.selectCollection(collection.id) },
-                                    label = { Text(collection.name) },
-                                    trailingIcon = {
-                                        Row {
-                                            IconButton(onClick = { showRenameCollectionDialog = collection }, modifier = Modifier.size(24.dp)) {
-                                                Text("\u270F\uFE0F", fontSize = 12.sp)
-                                            }
-                                            IconButton(onClick = { showDeleteCollectionDialog = collection }, modifier = Modifier.size(24.dp)) {
-                                                Text("\uD83D\uDDD1\uFE0F", fontSize = 12.sp)
-                                            }
-                                        }
-                                    }
-                                )
-                            }
-                            AssistChip(
-                                onClick = { showAddCollectionDialog = true },
-                                label = { Text("+ Neu") }
-                            )
-                        }
-                    }
-                }
-            }
-
-            item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(8.dp)) {
-                        ReorderableColumn(
-                            list = articles,
-                            onSettle = { fromIndex, toIndex ->
-                                val mutable = articles.toMutableList()
-                                val item = mutable.removeAt(fromIndex)
-                                mutable.add(toIndex, item)
-                                viewModel.reorderArticles(mutable)
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) { _, article, _ ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .alpha(if (!article.isActive) 0.5f else 1f)
-                                    .padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                IconButton(
-                                    onClick = {},
-                                    modifier = Modifier.draggableHandle()
-                                ) {
-                                    Text("\u2630", fontSize = 18.sp)
-                                }
-                                Text(
-                                    "${article.emoji} ${article.name} — ${String.format("%.2f", article.price)} €",
-                                    modifier = Modifier.weight(1f)
-                                )
-                                IconButton(onClick = { editingArticle = article }) {
-                                    Text("\u270F\uFE0F", fontSize = 16.sp)
-                                }
-                                IconButton(onClick = { showDeleteDialog = article }) {
-                                    Text("\uD83D\uDDD1\uFE0F", fontSize = 16.sp)
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Button(
-                                onClick = { showAddDialog = true },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = Green900)
-                            ) {
-                                Text("+ Hinzufügen")
-                            }
-                            Button(
-                                onClick = { showResetDialog = true },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                            ) {
-                                Text("Standard wiederherstellen")
-                            }
-                        }
-                    }
-                }
+                Button(
+                    onClick = onNavigateToArticles,
+                    colors = ButtonDefaults.buttonColors(containerColor = Green900)
+                ) { Text("Artikel & Collections verwalten") }
             }
 
             // SumUp Configuration Section
@@ -274,72 +157,16 @@ fun SettingsScreen(
             item {
                 HorizontalDivider()
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("PIN ändern", style = MaterialTheme.typography.titleLarge)
+                Text("PIN \u00E4ndern", style = MaterialTheme.typography.titleLarge)
             }
 
             item {
                 Button(
                     onClick = { showPinChangeDialog = true },
                     colors = ButtonDefaults.buttonColors(containerColor = Green900)
-                ) { Text("PIN ändern") }
+                ) { Text("PIN \u00E4ndern") }
             }
         }
-    }
-
-    // Dialogs
-    if (showAddDialog) {
-        ArticleDialog(
-            onDismiss = { showAddDialog = false },
-            onSave = { name, price, emoji, isActive ->
-                viewModel.addArticle(name, price, emoji, isActive, articles.size)
-                showAddDialog = false
-            }
-        )
-    }
-
-    editingArticle?.let { article ->
-        ArticleDialog(
-            article = article,
-            onDismiss = { editingArticle = null },
-            onSave = { name, price, emoji, isActive ->
-                viewModel.updateArticle(article, name, price, emoji, isActive)
-                editingArticle = null
-            }
-        )
-    }
-
-    showDeleteDialog?.let { article ->
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = null },
-            title = { Text("Artikel löschen?") },
-            text = { Text("\"${article.name}\" wirklich löschen?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteArticle(article)
-                    showDeleteDialog = null
-                }) { Text("Löschen", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = null }) { Text("Abbrechen") }
-            }
-        )
-    }
-
-    if (showResetDialog) {
-        AlertDialog(
-            onDismissRequest = { showResetDialog = false },
-            title = { Text("Artikel zurücksetzen?") },
-            text = { Text("Alle Artikel werden gelöscht und durch die Standard-Artikel ersetzt.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.resetArticlesToDefaults()
-                    showResetDialog = false
-                }) { Text("Zurücksetzen", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showResetDialog = false }) { Text("Abbrechen") }
-            }
-        )
     }
 
     if (showPinChangeDialog) {
@@ -348,46 +175,6 @@ fun SettingsScreen(
             onSave = { newPin ->
                 viewModel.changePin(newPin)
                 showPinChangeDialog = false
-            }
-        )
-    }
-
-    if (showAddCollectionDialog) {
-        CollectionNameDialog(
-            title = "Neue Collection",
-            onDismiss = { showAddCollectionDialog = false },
-            onSave = { name ->
-                viewModel.addCollection(name)
-                showAddCollectionDialog = false
-            }
-        )
-    }
-
-    showRenameCollectionDialog?.let { collection ->
-        CollectionNameDialog(
-            title = "Collection umbenennen",
-            initialName = collection.name,
-            onDismiss = { showRenameCollectionDialog = null },
-            onSave = { name ->
-                viewModel.renameCollection(collection, name)
-                showRenameCollectionDialog = null
-            }
-        )
-    }
-
-    showDeleteCollectionDialog?.let { collection ->
-        AlertDialog(
-            onDismissRequest = { showDeleteCollectionDialog = null },
-            title = { Text("Collection löschen?") },
-            text = { Text("\"${collection.name}\" und alle zugehörigen Artikel werden gelöscht.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteCollection(collection)
-                    showDeleteCollectionDialog = null
-                }) { Text("Löschen", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteCollectionDialog = null }) { Text("Abbrechen") }
             }
         )
     }
@@ -404,7 +191,7 @@ private fun PinChangeDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("PIN ändern") },
+        title = { Text("PIN \u00E4ndern") },
         text = {
             Column {
                 OutlinedTextField(
@@ -419,7 +206,7 @@ private fun PinChangeDialog(
                 OutlinedTextField(
                     value = confirmPin,
                     onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) confirmPin = it },
-                    label = { Text("PIN bestätigen") },
+                    label = { Text("PIN best\u00E4tigen") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                     visualTransformation = PasswordVisualTransformation()
@@ -434,7 +221,7 @@ private fun PinChangeDialog(
             TextButton(onClick = {
                 when {
                     newPin.length != 4 -> error = "PIN muss 4 Ziffern haben"
-                    newPin != confirmPin -> error = "PINs stimmen nicht überein"
+                    newPin != confirmPin -> error = "PINs stimmen nicht \u00FCberein"
                     else -> onSave(newPin)
                 }
             }) { Text("Speichern") }
@@ -446,7 +233,7 @@ private fun PinChangeDialog(
 }
 
 @Composable
-private fun CollectionNameDialog(
+internal fun CollectionNameDialog(
     title: String,
     initialName: String = "",
     onDismiss: () -> Unit,

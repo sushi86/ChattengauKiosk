@@ -14,6 +14,7 @@ import androidx.navigation.compose.rememberNavController
 import net.maerkl.kassierapp.ui.components.PinDialog
 import net.maerkl.kassierapp.ui.main.MainScreen
 import net.maerkl.kassierapp.ui.main.MainViewModel
+import net.maerkl.kassierapp.ui.settings.ArticleManagementScreen
 import net.maerkl.kassierapp.ui.settings.SettingsScreen
 import net.maerkl.kassierapp.ui.settings.SettingsViewModel
 import net.maerkl.kassierapp.ui.statistics.StatisticsScreen
@@ -48,7 +49,14 @@ fun AppNavigation(
                 onNavigateBack = { navController.popBackStack() },
                 onLogin = onLogin,
                 onOpenCardReader = onOpenCardReader,
-                onNavigateToStatistics = { navController.navigate("statistics") }
+                onNavigateToStatistics = { navController.navigate("statistics") },
+                onNavigateToArticles = { navController.navigate("articles") }
+            )
+        }
+        composable("articles") {
+            ArticleManagementScreen(
+                viewModel = settingsViewModel,
+                onNavigateBack = { navController.popBackStack() }
             )
         }
         composable("statistics") {
