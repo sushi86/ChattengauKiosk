@@ -10,5 +10,6 @@ data class Article(
     val price: Double,
     val emoji: String,
     val sortOrder: Int = 0,
-    val isActive: Boolean = true
+    val isActive: Boolean = true,
+    val collectionId: Long = 1
 )
