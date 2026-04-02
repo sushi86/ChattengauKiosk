@@ -10,10 +10,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-@Database(entities = [Article::class, Sale::class], version = 2)
+@Database(entities = [Article::class, Sale::class, ArticleCollection::class], version = 3)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun articleDao(): ArticleDao
     abstract fun saleDao(): SaleDao
+    abstract fun articleCollectionDao(): ArticleCollectionDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -32,6 +33,20 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS article_collections (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        name TEXT NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("INSERT INTO article_collections (id, name) VALUES (1, 'Standard')")
+                db.execSQL("ALTER TABLE articles ADD COLUMN collectionId INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE sales ADD COLUMN collectionId INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -42,12 +57,28 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "kassierapp_db"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .addCallback(PrepopulateCallback())
                     .build()
                 INSTANCE = instance
                 instance
             }
+        }
+
+        suspend fun insertDefaultArticles(dao: ArticleDao, collectionId: Long = 1) {
+            dao.insert(Article(name = "Hütt Luxus Pils", price = 2.00, emoji = "\uD83C\uDF7A", sortOrder = 0, collectionId = collectionId))
+            dao.insert(Article(name = "Martini Edelpils", price = 2.00, emoji = "\uD83C\uDF7A", sortOrder = 1, collectionId = collectionId))
+            dao.insert(Article(name = "Hütt Naturtrüb Radler", price = 2.00, emoji = "\uD83C\uDF7B", sortOrder = 2, collectionId = collectionId))
+            dao.insert(Article(name = "Hütt Hefeweizen", price = 3.00, emoji = "\uD83C\uDF7A", sortOrder = 3, collectionId = collectionId))
+            dao.insert(Article(name = "Hütt Hefeweizen alkoholfrei", price = 3.00, emoji = "\uD83C\uDF7A", sortOrder = 4, collectionId = collectionId))
+            dao.insert(Article(name = "Bier (Kiste)", price = 35.00, emoji = "\uD83D\uDCE6", sortOrder = 5, collectionId = collectionId))
+            dao.insert(Article(name = "Coca Cola", price = 2.00, emoji = "\uD83E\uDD64", sortOrder = 6, collectionId = collectionId))
+            dao.insert(Article(name = "Fanta", price = 2.00, emoji = "\uD83C\uDF4A", sortOrder = 7, collectionId = collectionId))
+            dao.insert(Article(name = "Sprite", price = 2.00, emoji = "\uD83E\uDDCB", sortOrder = 8, collectionId = collectionId))
+            dao.insert(Article(name = "Mineralwasser", price = 1.50, emoji = "\uD83D\uDCA7", sortOrder = 9, collectionId = collectionId))
+            dao.insert(Article(name = "Kaffee", price = 1.50, emoji = "\u2615", sortOrder = 10, collectionId = collectionId))
+            dao.insert(Article(name = "Kuchen", price = 1.50, emoji = "\uD83C\uDF70", sortOrder = 11, collectionId = collectionId))
+            dao.insert(Article(name = "Bratwurst mit Brötchen", price = 3.50, emoji = "\uD83C\uDF2D", sortOrder = 12, collectionId = collectionId))
         }
     }
 
@@ -56,13 +87,8 @@ abstract class AppDatabase : RoomDatabase() {
             super.onCreate(db)
             INSTANCE?.let { database ->
                 CoroutineScope(Dispatchers.IO).launch {
-                    val dao = database.articleDao()
-                    dao.insert(Article(name = "Bratwurst", price = 2.50, emoji = "\uD83C\uDF2D", sortOrder = 0))
-                    dao.insert(Article(name = "Bier", price = 2.00, emoji = "\uD83C\uDF7A", sortOrder = 1))
-                    dao.insert(Article(name = "Cola", price = 1.50, emoji = "\uD83E\uDD64", sortOrder = 2))
-                    dao.insert(Article(name = "Wasser", price = 1.00, emoji = "\uD83D\uDCA7", sortOrder = 3))
-                    dao.insert(Article(name = "Kaffee", price = 1.50, emoji = "\u2615", sortOrder = 4))
-                    dao.insert(Article(name = "Eintritt", price = 3.00, emoji = "\uD83C\uDF9F\uFE0F", sortOrder = 5))
+                    database.articleCollectionDao().insert(ArticleCollection(name = "Standard"))
+                    insertDefaultArticles(database.articleDao(), collectionId = 1)
                 }
             }
         }
