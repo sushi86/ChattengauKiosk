@@ -26,4 +26,7 @@ interface ArticleCollectionDao {
 
     @Query("SELECT * FROM article_collections ORDER BY id ASC LIMIT 1")
     suspend fun getFirst(): ArticleCollection?
+
+    @Query("SELECT * FROM article_collections ORDER BY id ASC")
+    suspend fun getAllOnce(): List<ArticleCollection>
 }

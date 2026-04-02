@@ -79,6 +79,26 @@ abstract class AppDatabase : RoomDatabase() {
             dao.insert(Article(name = "Kaffee", price = 1.50, emoji = "\u2615", sortOrder = 10, collectionId = collectionId))
             dao.insert(Article(name = "Kuchen", price = 1.50, emoji = "\uD83C\uDF70", sortOrder = 11, collectionId = collectionId))
             dao.insert(Article(name = "Bratwurst mit Brötchen", price = 3.50, emoji = "\uD83C\uDF2D", sortOrder = 12, collectionId = collectionId))
+            dao.insert(Article(name = MANUAL_PRICE_ARTICLE_NAME, price = 0.0, emoji = "\u270F\uFE0F", sortOrder = 13, collectionId = collectionId))
+        }
+
+        suspend fun ensureManualPriceArticles(articleDao: ArticleDao, collectionDao: ArticleCollectionDao) {
+            val collections = collectionDao.getAllOnce()
+            for (collection in collections) {
+                val count = articleDao.countByNameAndCollection(MANUAL_PRICE_ARTICLE_NAME, collection.id)
+                if (count == 0) {
+                    val maxSort = articleDao.getMaxSortOrder(collection.id)
+                    articleDao.insert(
+                        Article(
+                            name = MANUAL_PRICE_ARTICLE_NAME,
+                            price = 0.0,
+                            emoji = "\u270F\uFE0F",
+                            sortOrder = maxSort + 1,
+                            collectionId = collection.id
+                        )
+                    )
+                }
+            }
         }
     }
 
@@ -89,6 +109,15 @@ abstract class AppDatabase : RoomDatabase() {
                 CoroutineScope(Dispatchers.IO).launch {
                     val id = database.articleCollectionDao().insert(ArticleCollection(name = "Standard"))
                     insertDefaultArticles(database.articleDao(), collectionId = id)
+                }
+            }
+        }
+
+        override fun onOpen(db: SupportSQLiteDatabase) {
+            super.onOpen(db)
+            INSTANCE?.let { database ->
+                CoroutineScope(Dispatchers.IO).launch {
+                    ensureManualPriceArticles(database.articleDao(), database.articleCollectionDao())
                 }
             }
         }
