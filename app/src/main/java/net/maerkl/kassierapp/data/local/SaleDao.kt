@@ -15,10 +15,11 @@ interface SaleDao {
                SUM(articlePrice * quantity) AS totalRevenue,
                SUM(quantity) AS totalItems
         FROM sales
+        WHERE collectionId = :collectionId
         GROUP BY timestamp / 86400000
         ORDER BY dayTimestamp DESC
     """)
-    fun getDailySummaries(): Flow<List<DailySummary>>
+    fun getDailySummaries(collectionId: Long): Flow<List<DailySummary>>
 
     @Query("""
         SELECT articleName, articleEmoji,
@@ -27,9 +28,9 @@ interface SaleDao {
                SUM(CASE WHEN paymentMethod = 'KARTE' THEN quantity ELSE 0 END) AS cardQuantity,
                SUM(CASE WHEN paymentMethod = 'KARTE' THEN articlePrice * quantity ELSE 0.0 END) AS cardRevenue
         FROM sales
-        WHERE timestamp >= :startOfDay AND timestamp < :endOfDay
+        WHERE collectionId = :collectionId AND timestamp >= :startOfDay AND timestamp < :endOfDay
         GROUP BY articleName, articleEmoji
         ORDER BY articleName ASC
     """)
-    fun getArticleSummariesForDay(startOfDay: Long, endOfDay: Long): Flow<List<ArticleDaySummary>>
+    fun getArticleSummariesForDay(collectionId: Long, startOfDay: Long, endOfDay: Long): Flow<List<ArticleDaySummary>>
 }

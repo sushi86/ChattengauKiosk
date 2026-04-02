@@ -11,7 +11,8 @@ data class Sale(
     val articlePrice: Double,
     val quantity: Int,
     val paymentMethod: String,
-    val timestamp: Long
+    val timestamp: Long,
+    val collectionId: Long = 1
 )
 
 data class DailySummary(
