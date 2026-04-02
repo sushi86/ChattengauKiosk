@@ -23,4 +23,7 @@ interface ArticleCollectionDao {
 
     @Delete
     suspend fun delete(collection: ArticleCollection)
+
+    @Query("SELECT * FROM article_collections ORDER BY id ASC LIMIT 1")
+    suspend fun getFirst(): ArticleCollection?
 }

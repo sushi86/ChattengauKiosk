@@ -87,8 +87,8 @@ abstract class AppDatabase : RoomDatabase() {
             super.onCreate(db)
             INSTANCE?.let { database ->
                 CoroutineScope(Dispatchers.IO).launch {
-                    database.articleCollectionDao().insert(ArticleCollection(name = "Standard"))
-                    insertDefaultArticles(database.articleDao(), collectionId = 1)
+                    val id = database.articleCollectionDao().insert(ArticleCollection(name = "Standard"))
+                    insertDefaultArticles(database.articleDao(), collectionId = id)
                 }
             }
         }

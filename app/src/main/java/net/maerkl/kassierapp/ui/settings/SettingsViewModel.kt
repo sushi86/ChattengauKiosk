@@ -18,6 +18,7 @@ import net.maerkl.kassierapp.data.local.ArticleCollection
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as KassierApplication
     private val dao = app.database.articleDao()
+    private val saleDao = app.database.saleDao()
     private val collectionDao = app.database.articleCollectionDao()
     private val settings = app.settingsDataStore
 
@@ -67,9 +68,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 return@launch
             }
             dao.deleteAllByCollection(collection.id)
+            saleDao.deleteAllByCollection(collection.id)
             collectionDao.delete(collection)
             if (activeCollectionId.value == collection.id) {
-                settings.saveActiveCollectionId(1L)
+                val first = collectionDao.getFirst()
+                if (first != null) {
+                    settings.saveActiveCollectionId(first.id)
+                }
             }
             _snackbarMessage.emit("\"${collection.name}\" gelöscht")
         }

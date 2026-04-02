@@ -33,4 +33,7 @@ interface SaleDao {
         ORDER BY articleName ASC
     """)
     fun getArticleSummariesForDay(collectionId: Long, startOfDay: Long, endOfDay: Long): Flow<List<ArticleDaySummary>>
+
+    @Query("DELETE FROM sales WHERE collectionId = :collectionId")
+    suspend fun deleteAllByCollection(collectionId: Long)
 }
