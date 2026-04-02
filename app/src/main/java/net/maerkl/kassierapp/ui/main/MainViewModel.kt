@@ -56,6 +56,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _cart.value = current
     }
 
+    fun addManualPriceToCart(price: Double, name: String, originalArticle: Article) {
+        val cartArticle = originalArticle.copy(
+            id = -System.nanoTime(),
+            name = name,
+            price = price
+        )
+        val current = _cart.value.toMutableList()
+        current.add(CartItem(cartArticle, 1))
+        _cart.value = current
+    }
+
     fun removeFromCart(article: Article) {
         val current = _cart.value.toMutableList()
         val index = current.indexOfFirst { it.article.id == article.id }
