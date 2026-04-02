@@ -24,6 +24,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val articleDao = app.database.articleDao()
     private val saleDao = app.database.saleDao()
     private val settings = app.settingsDataStore
+    private var nextManualPriceId = -1L
 
     private val activeCollectionId = settings.activeCollectionId
         .stateIn(viewModelScope, SharingStarted.Eagerly, 1L)
@@ -58,7 +59,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addManualPriceToCart(price: Double, name: String, originalArticle: Article) {
         val cartArticle = originalArticle.copy(
-            id = -System.nanoTime(),
+            id = nextManualPriceId--,
             name = name,
             price = price
         )
