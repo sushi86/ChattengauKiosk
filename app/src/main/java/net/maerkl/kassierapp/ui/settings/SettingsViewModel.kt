@@ -8,12 +8,14 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import net.maerkl.kassierapp.KassierApplication
 import net.maerkl.kassierapp.data.local.AppDatabase
 import net.maerkl.kassierapp.data.local.Article
 import net.maerkl.kassierapp.data.local.ArticleCollection
+import net.maerkl.kassierapp.data.local.MANUAL_PRICE_ARTICLE_NAME
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as KassierApplication
@@ -29,7 +31,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val allArticles = activeCollectionId.flatMapLatest { collectionId ->
-        dao.getAllArticles(collectionId)
+        dao.getAllArticles(collectionId).map { articles ->
+            articles.filter { it.name != MANUAL_PRICE_ARTICLE_NAME }
+        }
     }
 
     val affiliateKey = settings.affiliateKey.stateIn(viewModelScope, SharingStarted.Eagerly, "")
