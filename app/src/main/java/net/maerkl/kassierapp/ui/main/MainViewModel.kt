@@ -3,11 +3,15 @@ package net.maerkl.kassierapp.ui.main
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import net.maerkl.kassierapp.KassierApplication
 import net.maerkl.kassierapp.data.local.Article
@@ -17,8 +21,17 @@ data class CartItem(val article: Article, val quantity: Int)
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as KassierApplication
-    val articles = app.database.articleDao().getActiveArticles()
+    private val articleDao = app.database.articleDao()
     private val saleDao = app.database.saleDao()
+    private val settings = app.settingsDataStore
+
+    private val activeCollectionId = settings.activeCollectionId
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 1L)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val articles = activeCollectionId.flatMapLatest { collectionId ->
+        articleDao.getActiveArticles(collectionId)
+    }
 
     private val _cart = MutableStateFlow<List<CartItem>>(emptyList())
     val cart: StateFlow<List<CartItem>> = _cart.asStateFlow()
@@ -95,6 +108,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun saveSales(paymentMethod: String) {
         val now = System.currentTimeMillis()
+        val collectionId = activeCollectionId.value
         val sales = _cart.value.map { item ->
             Sale(
                 articleName = item.article.name,
@@ -102,7 +116,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 articlePrice = item.article.price,
                 quantity = item.quantity,
                 paymentMethod = paymentMethod,
-                timestamp = now
+                timestamp = now,
+                collectionId = collectionId
             )
         }
         viewModelScope.launch {
