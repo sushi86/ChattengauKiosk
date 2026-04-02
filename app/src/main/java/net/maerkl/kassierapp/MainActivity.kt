@@ -1,15 +1,21 @@
 package net.maerkl.kassierapp
 
 import android.Manifest
+import android.app.admin.DevicePolicyManager
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.lifecycleScope
@@ -40,6 +46,42 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { /* permissions handled */ }
 
+    private val isDeviceOwner: Boolean
+        get() {
+            val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            return dpm.isDeviceOwnerApp(packageName)
+        }
+
+    /** Kiosk-Modus ist pausiert wenn der Admin in den Settings ist (SumUp braucht WebViews) */
+    private var kioskPaused = false
+
+    private fun enableImmersiveMode() {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+        controller.hide(WindowInsetsCompat.Type.systemBars())
+        controller.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    }
+
+    private fun startKioskMode() {
+        if (isDeviceOwner && !kioskPaused) {
+            startLockTask()
+        }
+        enableImmersiveMode()
+    }
+
+    fun pauseKioskMode() {
+        kioskPaused = true
+        if (isDeviceOwner) {
+            stopLockTask()
+        }
+    }
+
+    fun resumeKioskMode() {
+        kioskPaused = false
+        startKioskMode()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestPermissions()
@@ -51,15 +93,15 @@ class MainActivity : ComponentActivity() {
                 val vm: MainViewModel = viewModel()
                 mainViewModel = vm
 
-                // Collect checkout triggers
-                lifecycleScope.launch {
+                // Collect checkout triggers (LaunchedEffect ensures single collector)
+                LaunchedEffect(Unit) {
                     vm.checkoutAmount.collect { amount ->
                         startCheckout(amount)
                     }
                 }
 
-                // Collect snackbar messages
-                lifecycleScope.launch {
+                // Collect snackbar messages (LaunchedEffect ensures single collector)
+                LaunchedEffect(Unit) {
                     vm.snackbarMessage.collect { message ->
                         snackbarHostState.showSnackbar(message)
                     }
@@ -76,6 +118,11 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        startKioskMode()
     }
 
     @Suppress("DEPRECATION")
