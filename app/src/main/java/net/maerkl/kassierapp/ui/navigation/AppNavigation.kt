@@ -26,7 +26,9 @@ fun AppNavigation(
     sumUpLoggedIn: Boolean,
     onLogin: () -> Unit,
     onOpenCardReader: () -> Unit,
-    onShareIntent: (android.content.Intent) -> Unit
+    onShareIntent: (android.content.Intent) -> Unit,
+    onPauseKiosk: () -> Unit,
+    onResumeKiosk: () -> Unit
 ) {
     val navController = rememberNavController()
     val mainViewModel: MainViewModel = viewModel()
@@ -46,7 +48,10 @@ fun AppNavigation(
         composable("settings") {
             SettingsScreen(
                 viewModel = settingsViewModel,
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = {
+                    onResumeKiosk()
+                    navController.popBackStack()
+                },
                 onLogin = onLogin,
                 onOpenCardReader = onOpenCardReader,
                 onNavigateToStatistics = { navController.navigate("statistics") },
@@ -74,6 +79,7 @@ fun AppNavigation(
             correctPin = pin,
             onSuccess = {
                 showPinDialog = false
+                onPauseKiosk()
                 navController.navigate("settings")
             },
             onDismiss = { showPinDialog = false }

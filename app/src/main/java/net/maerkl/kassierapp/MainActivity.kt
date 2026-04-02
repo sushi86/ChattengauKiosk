@@ -114,7 +114,9 @@ class MainActivity : ComponentActivity() {
                     onOpenCardReader = { openCardReader() },
                     onShareIntent = { intent ->
                         startActivity(Intent.createChooser(intent, "CSV teilen"))
-                    }
+                    },
+                    onPauseKiosk = { pauseKioskMode() },
+                    onResumeKiosk = { resumeKioskMode() }
                 )
             }
         }
