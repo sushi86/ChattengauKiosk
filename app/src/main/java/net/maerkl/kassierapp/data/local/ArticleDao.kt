@@ -32,4 +32,10 @@ interface ArticleDao {
 
     @Query("DELETE FROM articles")
     suspend fun deleteAll()
+
+    @Query("SELECT COUNT(*) FROM articles WHERE name = :name AND collectionId = :collectionId")
+    suspend fun countByNameAndCollection(name: String, collectionId: Long): Int
+
+    @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM articles WHERE collectionId = :collectionId")
+    suspend fun getMaxSortOrder(collectionId: Long): Int
 }
