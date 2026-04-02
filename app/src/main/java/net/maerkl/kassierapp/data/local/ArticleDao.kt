@@ -38,4 +38,10 @@ interface ArticleDao {
 
     @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM articles WHERE collectionId = :collectionId")
     suspend fun getMaxSortOrder(collectionId: Long): Int
+
+    @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM articles WHERE collectionId = :collectionId AND name != :excludeName")
+    suspend fun getMaxSortOrderExcluding(excludeName: String, collectionId: Long): Int
+
+    @Query("UPDATE articles SET sortOrder = :sortOrder WHERE name = :name AND collectionId = :collectionId")
+    suspend fun updateManualPriceSortOrder(name: String, collectionId: Long, sortOrder: Int)
 }

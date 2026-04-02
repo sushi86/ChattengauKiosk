@@ -86,7 +86,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun addArticle(name: String, price: Double, emoji: String, isActive: Boolean, currentCount: Int) {
         viewModelScope.launch {
-            dao.insert(Article(name = name, price = price, emoji = emoji, isActive = isActive, sortOrder = currentCount, collectionId = activeCollectionId.value))
+            val collectionId = activeCollectionId.value
+            dao.insert(Article(name = name, price = price, emoji = emoji, isActive = isActive, sortOrder = currentCount, collectionId = collectionId))
+            bumpManualPriceToEnd(collectionId)
         }
     }
 
@@ -107,7 +109,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             articles.forEachIndexed { index, article ->
                 dao.updateSortOrder(article.id, index)
             }
+            bumpManualPriceToEnd(activeCollectionId.value)
         }
+    }
+
+    private suspend fun bumpManualPriceToEnd(collectionId: Long) {
+        val maxSort = dao.getMaxSortOrderExcluding(MANUAL_PRICE_ARTICLE_NAME, collectionId)
+        dao.updateManualPriceSortOrder(MANUAL_PRICE_ARTICLE_NAME, collectionId, maxSort + 1)
     }
 
     fun saveSumUpConfig(affiliateKey: String, oauthToken: String) {
