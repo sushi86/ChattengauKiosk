@@ -94,7 +94,9 @@ fun MainScreen(
     var stockEditArticle by remember { mutableStateOf<Article?>(null) }
     var batteryPercent by remember { mutableStateOf(0) }
     var batteryCharging by remember { mutableStateOf(false) }
+    var batteryEta by remember { mutableStateOf<String?>(null) }
     var wifiName by remember { mutableStateOf<String?>(null) }
+    val batteryReadings = remember { mutableListOf<Pair<Long, Int>>() }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -105,6 +107,32 @@ fun MainScreen(
             if (level >= 0 && scale > 0) batteryPercent = (level * 100) / scale
             val status = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
             batteryCharging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+
+            // Battery ETA
+            if (batteryCharging) {
+                batteryReadings.clear()
+                batteryEta = null
+            } else {
+                val now = System.currentTimeMillis()
+                batteryReadings.add(now to batteryPercent)
+                // Keep last 10 minutes of readings
+                val cutoff = now - 10 * 60 * 1000L
+                batteryReadings.removeAll { it.first < cutoff }
+
+                if (batteryReadings.size >= 2) {
+                    val first = batteryReadings.first()
+                    val last = batteryReadings.last()
+                    val elapsedMin = (last.first - first.first) / 60_000.0
+                    val droppedPercent = first.second - last.second
+                    if (droppedPercent > 0 && elapsedMin >= 2.0) {
+                        val minPerPercent = elapsedMin / droppedPercent
+                        val remainingMin = (last.second * minPerPercent).toInt()
+                        val hours = remainingMin / 60
+                        val mins = remainingMin % 60
+                        batteryEta = if (hours > 0) "${hours}h ${mins}m" else "${mins}m"
+                    }
+                }
+            }
 
             // WiFi
             val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -166,8 +194,9 @@ fun MainScreen(
                         fontSize = 13.sp,
                         modifier = Modifier.padding(end = 8.dp)
                     )
+                    val etaSuffix = if (!batteryCharging && batteryEta != null) " ($batteryEta)" else ""
                     Text(
-                        text = if (batteryCharging) "\u26A1 $batteryPercent%" else "\uD83D\uDD0B $batteryPercent%",
+                        text = if (batteryCharging) "\u26A1 $batteryPercent%" else "\uD83D\uDD0B $batteryPercent%$etaSuffix",
                         color = batteryColor,
                         fontSize = 13.sp,
                         modifier = Modifier.padding(end = 4.dp)
