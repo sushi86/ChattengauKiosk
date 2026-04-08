@@ -1,7 +1,8 @@
 package net.maerkl.kassierapp.ui.main
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -69,6 +70,10 @@ import kotlinx.coroutines.delay
 import net.maerkl.kassierapp.R
 import net.maerkl.kassierapp.data.local.Article
 import net.maerkl.kassierapp.data.local.isManualPrice
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.input.KeyboardType
 import net.maerkl.kassierapp.ui.components.ManualPriceDialog
 import net.maerkl.kassierapp.ui.theme.Green900
 
@@ -85,6 +90,7 @@ fun MainScreen(
     val cart by viewModel.cart.collectAsState()
     val remainingStock by viewModel.remainingStock.collectAsState()
     var manualPriceArticle by remember { mutableStateOf<Article?>(null) }
+    var stockEditArticle by remember { mutableStateOf<Article?>(null) }
     var batteryPercent by remember { mutableStateOf(0) }
     var batteryCharging by remember { mutableStateOf(false) }
     var wifiName by remember { mutableStateOf<String?>(null) }
@@ -189,6 +195,11 @@ fun MainScreen(
                             } else {
                                 viewModel.addToCart(article)
                             }
+                        },
+                        onLongClick = {
+                            if (article.stockQuantity != null) {
+                                stockEditArticle = article
+                            }
                         }
                     )
                 }
@@ -215,14 +226,26 @@ fun MainScreen(
             }
         )
     }
+
+    stockEditArticle?.let { article ->
+        StockEditDialog(
+            article = article,
+            onDismiss = { stockEditArticle = null },
+            onSave = { newQuantity ->
+                viewModel.updateStockQuantity(article, newQuantity)
+                stockEditArticle = null
+            }
+        )
+    }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ArticleCard(article: Article, remainingStock: Int?, onClick: () -> Unit) {
+private fun ArticleCard(article: Article, remainingStock: Int?, onClick: () -> Unit, onLongClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
@@ -388,5 +411,37 @@ private fun AutoSizeText(
         modifier = Modifier
             .fillMaxWidth()
             .alpha(if (readyToDraw) 1f else 0f)
+    )
+}
+
+@Composable
+private fun StockEditDialog(
+    article: Article,
+    onDismiss: () -> Unit,
+    onSave: (Int?) -> Unit
+) {
+    var stockText by remember { mutableStateOf(article.stockQuantity?.toString() ?: "") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("${article.emoji} ${article.name}") },
+        text = {
+            OutlinedTextField(
+                value = stockText,
+                onValueChange = { stockText = it },
+                label = { Text("Menge") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val stock = stockText.toIntOrNull()
+                onSave(stock)
+            }) { Text("Speichern") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Abbrechen") }
+        }
     )
 }

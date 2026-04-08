@@ -139,6 +139,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun updateStockQuantity(article: Article, newQuantity: Int?) {
+        viewModelScope.launch {
+            articleDao.update(article.copy(stockQuantity = newQuantity))
+        }
+    }
+
     fun onPaymentFailed() {
         viewModelScope.launch {
             _snackbarMessage.emit("Zahlung fehlgeschlagen")
