@@ -377,7 +377,7 @@ private fun CartPanel(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(if (index % 2 == 0) Color(0xFFE8F5E9) else Color.Transparent)
+                            .background(if (index % 2 == 0) Color(0xFFE3F2FD) else Color.Transparent)
                             .clickable { onRemove(item.article) }
                             .padding(horizontal = 8.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
