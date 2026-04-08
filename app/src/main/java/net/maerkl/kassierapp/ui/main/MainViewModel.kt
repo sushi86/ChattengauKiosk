@@ -21,6 +21,7 @@ import net.maerkl.kassierapp.KassierApplication
 import net.maerkl.kassierapp.data.local.Article
 import net.maerkl.kassierapp.data.local.Sale
 import net.maerkl.kassierapp.data.local.Transaction
+import net.maerkl.kassierapp.data.local.TransactionWithSales
 
 data class CartItem(val article: Article, val quantity: Int)
 
@@ -64,13 +65,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val todayTransactions: StateFlow<List<Transaction>> = activeCollectionId.flatMapLatest { collectionId ->
-        transactionDao.getTodayTransactions(collectionId, startOfToday())
+    val todayTransactions: StateFlow<List<TransactionWithSales>> = activeCollectionId.flatMapLatest { collectionId ->
+        transactionDao.getTodayTransactionsWithSales(collectionId, startOfToday())
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-
-    suspend fun getSalesForTransaction(transactionId: Long): List<Sale> {
-        return saleDao.getSalesByTransactionId(transactionId)
-    }
 
     private fun startOfToday(): Long {
         val cal = Calendar.getInstance(TimeZone.getDefault())

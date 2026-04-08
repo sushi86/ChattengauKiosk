@@ -64,11 +64,8 @@ import android.net.NetworkCapabilities
 import android.net.wifi.WifiManager
 import android.os.BatteryManager
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import net.maerkl.kassierapp.R
-import net.maerkl.kassierapp.data.local.Sale
 import net.maerkl.kassierapp.data.local.Article
 import net.maerkl.kassierapp.data.local.isManualPrice
 import androidx.compose.foundation.text.KeyboardOptions
@@ -490,9 +487,6 @@ private fun TransactionHistoryDialog(
     onDismiss: () -> Unit
 ) {
     val transactions by viewModel.todayTransactions.collectAsState()
-    var expandedTransactionId by remember { mutableStateOf<Long?>(null) }
-    var expandedSales by remember { mutableStateOf<List<Sale>>(emptyList()) }
-    val coroutineScope = rememberCoroutineScope()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -506,26 +500,14 @@ private fun TransactionHistoryDialog(
                         .fillMaxWidth()
                         .height(400.dp)
                 ) {
-                    items(transactions, key = { it.id }) { transaction ->
-                        val isExpanded = expandedTransactionId == transaction.id
+                    items(transactions, key = { it.transaction.id }) { txWithSales ->
                         val time = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-                            .format(java.util.Date(transaction.timestamp))
-                        val methodIcon = if (transaction.paymentMethod == "KARTE") "\uD83D\uDCB3" else "\uD83D\uDCB5"
+                            .format(java.util.Date(txWithSales.transaction.timestamp))
+                        val methodIcon = if (txWithSales.transaction.paymentMethod == "KARTE") "\uD83D\uDCB3" else "\uD83D\uDCB5"
 
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
-                                    if (isExpanded) {
-                                        expandedTransactionId = null
-                                        expandedSales = emptyList()
-                                    } else {
-                                        expandedTransactionId = transaction.id
-                                        coroutineScope.launch {
-                                            expandedSales = viewModel.getSalesForTransaction(transaction.id)
-                                        }
-                                    }
-                                }
                                 .padding(vertical = 8.dp, horizontal = 4.dp)
                         ) {
                             Row(
@@ -539,32 +521,28 @@ private fun TransactionHistoryDialog(
                                     fontWeight = FontWeight.Medium
                                 )
                                 Text(
-                                    text = String.format("%.2f \u20AC", transaction.totalAmount),
+                                    text = String.format("%.2f \u20AC", txWithSales.transaction.totalAmount),
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
-
-                            if (isExpanded) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                expandedSales.forEach { sale ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(start = 16.dp, top = 2.dp, bottom = 2.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            text = "${sale.articleEmoji} ${sale.quantity}\u00D7 ${sale.articleName}",
-                                            fontSize = 14.sp,
-                                            color = Color.Gray
-                                        )
-                                        Text(
-                                            text = String.format("%.2f \u20AC", sale.articlePrice * sale.quantity),
-                                            fontSize = 14.sp,
-                                            color = Color.Gray
-                                        )
-                                    }
+                            txWithSales.sales.forEach { sale ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 16.dp, top = 2.dp, bottom = 2.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "${sale.articleEmoji} ${sale.quantity}\u00D7 ${sale.articleName}",
+                                        fontSize = 14.sp,
+                                        color = Color.Gray
+                                    )
+                                    Text(
+                                        text = String.format("%.2f \u20AC", sale.articlePrice * sale.quantity),
+                                        fontSize = 14.sp,
+                                        color = Color.Gray
+                                    )
                                 }
                             }
                         }
