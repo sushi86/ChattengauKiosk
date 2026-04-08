@@ -44,4 +44,7 @@ interface SaleDao {
         GROUP BY articleName
     """)
     fun getSoldQuantitiesToday(collectionId: Long, startOfDay: Long): Flow<List<SoldQuantity>>
+
+    @Query("SELECT * FROM sales WHERE transactionId = :transactionId")
+    suspend fun getSalesByTransactionId(transactionId: Long): List<Sale>
 }
