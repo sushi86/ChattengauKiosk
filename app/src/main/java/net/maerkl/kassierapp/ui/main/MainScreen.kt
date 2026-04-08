@@ -481,6 +481,15 @@ private fun StockEditDialog(
                         Text("+", fontSize = 24.sp, fontWeight = FontWeight.Bold)
                     }
                 }
+                if (currentStock != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    TextButton(
+                        onClick = { onSave(null) },
+                        modifier = Modifier.align(Alignment.Start)
+                    ) {
+                        Text("Entfernen", color = MaterialTheme.colorScheme.error)
+                    }
+                }
             }
         },
         confirmButton = {
@@ -490,14 +499,7 @@ private fun StockEditDialog(
             }) { Text("Speichern") }
         },
         dismissButton = {
-            Row {
-                if (currentStock != null) {
-                    TextButton(onClick = { onSave(null) }) {
-                        Text("Entfernen", color = MaterialTheme.colorScheme.error)
-                    }
-                }
-                TextButton(onClick = onDismiss) { Text("Abbrechen") }
-            }
+            TextButton(onClick = onDismiss) { Text("Abbrechen") }
         }
     )
 }
