@@ -64,8 +64,11 @@ import android.net.NetworkCapabilities
 import android.net.wifi.WifiManager
 import android.os.BatteryManager
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import net.maerkl.kassierapp.R
+import net.maerkl.kassierapp.data.local.Sale
 import net.maerkl.kassierapp.data.local.Article
 import net.maerkl.kassierapp.data.local.isManualPrice
 import androidx.compose.foundation.text.KeyboardOptions
@@ -95,6 +98,7 @@ fun MainScreen(
     var batteryEta by remember { mutableStateOf<String?>(null) }
     var wifiName by remember { mutableStateOf<String?>(null) }
     var currentTime by remember { mutableStateOf("") }
+    var showTransactionHistory by remember { mutableStateOf(false) }
     val batteryReadings = remember { mutableListOf<Pair<Long, Int>>() }
 
     LaunchedEffect(Unit) {
@@ -214,7 +218,9 @@ fun MainScreen(
                             color = Color.White,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(end = 4.dp)
+                            modifier = Modifier
+                                .padding(end = 4.dp)
+                                .clickable { showTransactionHistory = true }
                         )
                     }
                     TextButton(onClick = onNavigateToSettings) {
@@ -290,6 +296,13 @@ fun MainScreen(
                 viewModel.updateStockQuantity(article, newQuantity)
                 stockEditArticle = null
             }
+        )
+    }
+
+    if (showTransactionHistory) {
+        TransactionHistoryDialog(
+            viewModel = viewModel,
+            onDismiss = { showTransactionHistory = false }
         )
     }
 }
@@ -468,6 +481,101 @@ private fun AutoSizeText(
         modifier = Modifier
             .fillMaxWidth()
             .alpha(if (readyToDraw) 1f else 0f)
+    )
+}
+
+@Composable
+private fun TransactionHistoryDialog(
+    viewModel: MainViewModel,
+    onDismiss: () -> Unit
+) {
+    val transactions by viewModel.todayTransactions.collectAsState()
+    var expandedTransactionId by remember { mutableStateOf<Long?>(null) }
+    var expandedSales by remember { mutableStateOf<List<Sale>>(emptyList()) }
+    val coroutineScope = rememberCoroutineScope()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Transaktionen heute", fontWeight = FontWeight.Bold) },
+        text = {
+            if (transactions.isEmpty()) {
+                Text("Noch keine Transaktionen heute.", color = Color.Gray)
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(400.dp)
+                ) {
+                    items(transactions, key = { it.id }) { transaction ->
+                        val isExpanded = expandedTransactionId == transaction.id
+                        val time = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+                            .format(java.util.Date(transaction.timestamp))
+                        val methodIcon = if (transaction.paymentMethod == "KARTE") "\uD83D\uDCB3" else "\uD83D\uDCB5"
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    if (isExpanded) {
+                                        expandedTransactionId = null
+                                        expandedSales = emptyList()
+                                    } else {
+                                        expandedTransactionId = transaction.id
+                                        coroutineScope.launch {
+                                            expandedSales = viewModel.getSalesForTransaction(transaction.id)
+                                        }
+                                    }
+                                }
+                                .padding(vertical = 8.dp, horizontal = 4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "$time  $methodIcon",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = String.format("%.2f \u20AC", transaction.totalAmount),
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            if (isExpanded) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                expandedSales.forEach { sale ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(start = 16.dp, top = 2.dp, bottom = 2.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "${sale.articleEmoji} ${sale.quantity}\u00D7 ${sale.articleName}",
+                                            fontSize = 14.sp,
+                                            color = Color.Gray
+                                        )
+                                        Text(
+                                            text = String.format("%.2f \u20AC", sale.articlePrice * sale.quantity),
+                                            fontSize = 14.sp,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        HorizontalDivider()
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Schliessen") }
+        }
     )
 }
 
