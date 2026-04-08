@@ -80,6 +80,7 @@ fun MainScreen(
     val context = LocalContext.current
     val articles by viewModel.articles.collectAsState(initial = emptyList())
     val cart by viewModel.cart.collectAsState()
+    val remainingStock by viewModel.remainingStock.collectAsState()
     var manualPriceArticle by remember { mutableStateOf<Article?>(null) }
     var batteryPercent by remember { mutableStateOf(0) }
     var batteryCharging by remember { mutableStateOf(false) }
@@ -178,6 +179,7 @@ fun MainScreen(
                 items(articles, key = { it.id }) { article ->
                     ArticleCard(
                         article = article,
+                        remainingStock = remainingStock[article.name],
                         onClick = {
                             if (article.isManualPrice) {
                                 manualPriceArticle = article
@@ -213,7 +215,7 @@ fun MainScreen(
 }
 
 @Composable
-private fun ArticleCard(article: Article, onClick: () -> Unit) {
+private fun ArticleCard(article: Article, remainingStock: Int?, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -237,9 +239,17 @@ private fun ArticleCard(article: Article, onClick: () -> Unit) {
             )
             if (!article.isManualPrice) {
                 Text(
-                    String.format("%.2f \u20AC", article.price),
+                    String.format("%.2f €", article.price),
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold
+                )
+            }
+            if (remainingStock != null) {
+                Text(
+                    text = if (remainingStock > 0) "Noch $remainingStock" else "Ausverkauft",
+                    color = if (remainingStock > 0) Color.Gray else Color.Red,
+                    fontSize = 11.sp,
+                    fontWeight = if (remainingStock <= 0) FontWeight.Bold else FontWeight.Normal
                 )
             }
         }
