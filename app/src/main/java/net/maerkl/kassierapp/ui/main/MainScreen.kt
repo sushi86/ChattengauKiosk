@@ -206,7 +206,7 @@ fun MainScreen(
                     )
                     if (currentTime.isNotBlank()) {
                         Text(
-                            text = currentTime,
+                            text = "\uD83D\uDD50 $currentTime",
                             color = Color.White,
                             fontSize = 13.sp,
                             modifier = Modifier.padding(end = 4.dp)
