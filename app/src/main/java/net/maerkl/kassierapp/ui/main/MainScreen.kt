@@ -230,6 +230,7 @@ fun MainScreen(
     stockEditArticle?.let { article ->
         StockEditDialog(
             article = article,
+            currentStock = remainingStock[article.name] ?: article.stockQuantity ?: 0,
             onDismiss = { stockEditArticle = null },
             onSave = { newQuantity ->
                 viewModel.updateStockQuantity(article, newQuantity)
@@ -417,22 +418,70 @@ private fun AutoSizeText(
 @Composable
 private fun StockEditDialog(
     article: Article,
+    currentStock: Int,
     onDismiss: () -> Unit,
     onSave: (Int?) -> Unit
 ) {
-    var stockText by remember { mutableStateOf(article.stockQuantity?.toString() ?: "") }
+    var stockText by remember { mutableStateOf(currentStock.toString()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("${article.emoji} ${article.name}") },
-        text = {
-            OutlinedTextField(
-                value = stockText,
-                onValueChange = { stockText = it },
-                label = { Text("Menge") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+        title = {
+            Text(
+                "${article.emoji} ${article.name}",
+                fontSize = 20.sp
             )
+        },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Verbleibende Menge", color = Color.Gray, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Button(
+                        onClick = {
+                            val current = stockText.toIntOrNull() ?: 0
+                            if (current > 0) stockText = (current - 1).toString()
+                        },
+                        modifier = Modifier.size(56.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("\u2212", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    OutlinedTextField(
+                        value = stockText,
+                        onValueChange = { stockText = it },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        ),
+                        modifier = Modifier.width(100.dp)
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Button(
+                        onClick = {
+                            val current = stockText.toIntOrNull() ?: 0
+                            stockText = (current + 1).toString()
+                        },
+                        modifier = Modifier.size(56.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Green900)
+                    ) {
+                        Text("+", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
         },
         confirmButton = {
             TextButton(onClick = {
