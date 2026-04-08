@@ -13,7 +13,8 @@ data class Article(
     val emoji: String,
     val sortOrder: Int = 0,
     val isActive: Boolean = true,
-    val collectionId: Long = 1
+    val collectionId: Long = 1,
+    val stockQuantity: Int? = null
 )
 
 val Article.isManualPrice: Boolean
