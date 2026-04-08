@@ -29,3 +29,8 @@ data class ArticleDaySummary(
     val cardQuantity: Int,
     val cardRevenue: Double
 )
+
+data class SoldQuantity(
+    val articleName: String,
+    val totalSold: Int
+)

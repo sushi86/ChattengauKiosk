@@ -36,4 +36,12 @@ interface SaleDao {
 
     @Query("DELETE FROM sales WHERE collectionId = :collectionId")
     suspend fun deleteAllByCollection(collectionId: Long)
+
+    @Query("""
+        SELECT articleName, SUM(quantity) AS totalSold
+        FROM sales
+        WHERE collectionId = :collectionId AND timestamp >= :startOfDay
+        GROUP BY articleName
+    """)
+    fun getSoldQuantitiesToday(collectionId: Long, startOfDay: Long): Flow<List<SoldQuantity>>
 }
