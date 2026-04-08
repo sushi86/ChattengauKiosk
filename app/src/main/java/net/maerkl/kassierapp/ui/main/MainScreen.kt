@@ -96,6 +96,7 @@ fun MainScreen(
     var batteryCharging by remember { mutableStateOf(false) }
     var batteryEta by remember { mutableStateOf<String?>(null) }
     var wifiName by remember { mutableStateOf<String?>(null) }
+    var currentTime by remember { mutableStateOf("") }
     val batteryReadings = remember { mutableListOf<Pair<Long, Int>>() }
 
     LaunchedEffect(Unit) {
@@ -148,6 +149,10 @@ fun MainScreen(
                 wifiName = null
             }
 
+            // Clock
+            val cal = java.util.Calendar.getInstance()
+            currentTime = String.format("%02d:%02d", cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE))
+
             delay(30_000L)
         }
     }
@@ -199,8 +204,16 @@ fun MainScreen(
                         text = if (batteryCharging) "\u26A1 $batteryPercent%" else "\uD83D\uDD0B $batteryPercent%$etaSuffix",
                         color = batteryColor,
                         fontSize = 13.sp,
-                        modifier = Modifier.padding(end = 4.dp)
+                        modifier = Modifier.padding(end = 8.dp)
                     )
+                    if (currentTime.isNotBlank()) {
+                        Text(
+                            text = currentTime,
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(end = 4.dp)
+                        )
+                    }
                     TextButton(onClick = onNavigateToSettings) {
                         Text("\u2699\uFE0F Einstellungen", color = Color.White)
                     }
