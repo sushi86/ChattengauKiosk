@@ -3,6 +3,7 @@ package net.maerkl.kassierapp.ui.main
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,9 +12,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
 import java.util.Calendar
 import java.util.TimeZone
 import kotlinx.coroutines.launch
@@ -172,6 +177,55 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun onPaymentFailed() {
         viewModelScope.launch {
             _snackbarMessage.emit("Zahlung fehlgeschlagen")
+        }
+    }
+
+    private val _refundInProgress = MutableStateFlow(false)
+    val refundInProgress: StateFlow<Boolean> = _refundInProgress.asStateFlow()
+
+    fun refundTransaction(transaction: Transaction) {
+        if (_refundInProgress.value) return
+        _refundInProgress.value = true
+
+        viewModelScope.launch {
+            try {
+                if (transaction.paymentMethod == "KARTE" && transaction.txCode != null) {
+                    val token = settings.oauthToken.first()
+                    if (token.isBlank()) {
+                        _snackbarMessage.emit("Kein SumUp-Token vorhanden")
+                        return@launch
+                    }
+                    val success = withContext(Dispatchers.IO) {
+                        callSumUpRefund(transaction.txCode, token)
+                    }
+                    if (!success) {
+                        _snackbarMessage.emit("SumUp-Rückerstattung fehlgeschlagen")
+                        return@launch
+                    }
+                }
+                transactionDao.markRefunded(transaction.id)
+                _snackbarMessage.emit("Transaktion storniert")
+            } catch (e: Exception) {
+                _snackbarMessage.emit("Fehler: ${e.message}")
+            } finally {
+                _refundInProgress.value = false
+            }
+        }
+    }
+
+    private fun callSumUpRefund(txCode: String, token: String): Boolean {
+        val url = URL("https://api.sumup.com/v0.1/me/refund/$txCode")
+        val conn = url.openConnection() as HttpURLConnection
+        conn.requestMethod = "POST"
+        conn.setRequestProperty("Authorization", "Bearer $token")
+        conn.setRequestProperty("Content-Type", "application/json")
+        conn.connectTimeout = 10000
+        conn.readTimeout = 10000
+        conn.doOutput = false
+        return try {
+            conn.responseCode in 200..299
+        } finally {
+            conn.disconnect()
         }
     }
 
