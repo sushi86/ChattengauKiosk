@@ -20,6 +20,7 @@ import kotlinx.coroutines.launch
 import net.maerkl.kassierapp.KassierApplication
 import net.maerkl.kassierapp.data.local.Article
 import net.maerkl.kassierapp.data.local.Sale
+import net.maerkl.kassierapp.data.local.Transaction
 
 data class CartItem(val article: Article, val quantity: Int)
 
@@ -27,6 +28,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as KassierApplication
     private val articleDao = app.database.articleDao()
     private val saleDao = app.database.saleDao()
+    private val transactionDao = app.database.transactionDao()
     private val collectionDao = app.database.articleCollectionDao()
     private val settings = app.settingsDataStore
     private var nextManualPriceId = -1L
@@ -60,6 +62,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val todayTransactions: StateFlow<List<Transaction>> = activeCollectionId.flatMapLatest { collectionId ->
+        transactionDao.getTodayTransactions(collectionId, startOfToday())
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    suspend fun getSalesForTransaction(transactionId: Long): List<Sale> {
+        return saleDao.getSalesByTransactionId(transactionId)
+    }
 
     private fun startOfToday(): Long {
         val cal = Calendar.getInstance(TimeZone.getDefault())
@@ -133,15 +144,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun cashPayment() {
         if (_cart.value.isEmpty()) return
-        saveSales("BAR")
+        saveSales("BAR", null)
         clearCart()
         viewModelScope.launch {
             _snackbarMessage.emit("Barzahlung erfasst")
         }
     }
 
-    fun onPaymentSuccess() {
-        saveSales("KARTE")
+    fun onPaymentSuccess(txCode: String? = null) {
+        saveSales("KARTE", txCode)
         clearCart()
         viewModelScope.launch {
             _snackbarMessage.emit("Zahlung erfolgreich")
@@ -167,21 +178,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun saveSales(paymentMethod: String) {
+    private fun saveSales(paymentMethod: String, txCode: String?) {
         val now = System.currentTimeMillis()
         val collectionId = activeCollectionId.value
-        val sales = _cart.value.map { item ->
-            Sale(
-                articleName = item.article.name,
-                articleEmoji = item.article.emoji,
-                articlePrice = item.article.price,
-                quantity = item.quantity,
-                paymentMethod = paymentMethod,
-                timestamp = now,
-                collectionId = collectionId
-            )
-        }
+        val total = cartTotal
+
         viewModelScope.launch {
+            val transactionId = transactionDao.insert(
+                Transaction(
+                    timestamp = now,
+                    paymentMethod = paymentMethod,
+                    totalAmount = total,
+                    txCode = txCode,
+                    collectionId = collectionId
+                )
+            )
+
+            val sales = _cart.value.map { item ->
+                Sale(
+                    articleName = item.article.name,
+                    articleEmoji = item.article.emoji,
+                    articlePrice = item.article.price,
+                    quantity = item.quantity,
+                    paymentMethod = paymentMethod,
+                    timestamp = now,
+                    collectionId = collectionId,
+                    transactionId = transactionId
+                )
+            }
             saleDao.insertAll(sales)
         }
     }
