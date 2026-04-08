@@ -189,17 +189,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             try {
-                if (transaction.paymentMethod == "KARTE" && transaction.txCode != null) {
+                if (transaction.paymentMethod == "KARTE") {
+                    if (transaction.txCode == null) {
+                        _snackbarMessage.emit("Kartenstorno nicht möglich: Kein Transaktionscode vorhanden")
+                        return@launch
+                    }
                     val token = settings.oauthToken.first()
                     if (token.isBlank()) {
                         _snackbarMessage.emit("Kein SumUp-Token vorhanden")
                         return@launch
                     }
-                    val success = withContext(Dispatchers.IO) {
+                    val errorMessage = withContext(Dispatchers.IO) {
                         callSumUpRefund(transaction.txCode, token)
                     }
-                    if (!success) {
-                        _snackbarMessage.emit("SumUp-Rückerstattung fehlgeschlagen")
+                    if (errorMessage != null) {
+                        _snackbarMessage.emit("SumUp-Rückerstattung fehlgeschlagen: $errorMessage")
                         return@launch
                     }
                 }
@@ -213,7 +217,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun callSumUpRefund(txCode: String, token: String): Boolean {
+    private fun callSumUpRefund(txCode: String, token: String): String? {
         val url = URL("https://api.sumup.com/v0.1/me/refund/$txCode")
         val conn = url.openConnection() as HttpURLConnection
         conn.requestMethod = "POST"
@@ -223,7 +227,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         conn.readTimeout = 10000
         conn.doOutput = false
         return try {
-            conn.responseCode in 200..299
+            if (conn.responseCode in 200..299) {
+                null
+            } else {
+                val errorBody = try {
+                    conn.errorStream?.bufferedReader()?.readText()
+                } catch (_: Exception) { null }
+                val message = if (errorBody != null) {
+                    try {
+                        org.json.JSONObject(errorBody).optString("message", errorBody)
+                    } catch (_: Exception) { errorBody }
+                } else {
+                    "HTTP ${conn.responseCode}"
+                }
+                message
+            }
         } finally {
             conn.disconnect()
         }
