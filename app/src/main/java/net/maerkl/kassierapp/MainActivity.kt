@@ -4,8 +4,15 @@ import android.Manifest
 import android.app.admin.DevicePolicyManager
 import android.content.Context
 import android.content.Intent
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.MotionEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -56,6 +63,50 @@ class MainActivity : ComponentActivity() {
     /** Kiosk-Modus ist pausiert wenn der Admin in den Settings ist (SumUp braucht WebViews) */
     private var kioskPaused = false
 
+    /** Screen dimming after inactivity */
+    private val dimHandler = Handler(Looper.getMainLooper())
+    private val dimDelay = 30_000L
+    private val dimBrightness = 0.05f
+    private var isDimmed = false
+    private var sensorManager: SensorManager? = null
+    private var proximitySensor: Sensor? = null
+
+    private val dimRunnable = Runnable { dimScreen() }
+
+    private val proximityListener = object : SensorEventListener {
+        override fun onSensorChanged(event: SensorEvent) {
+            if (event.sensor.type == Sensor.TYPE_PROXIMITY) {
+                val maxRange = event.sensor.maximumRange
+                if (event.values[0] < maxRange) {
+                    wakeScreen()
+                }
+            }
+        }
+        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+    }
+
+    private fun dimScreen() {
+        if (!isDimmed) {
+            isDimmed = true
+            val lp = window.attributes
+            lp.screenBrightness = dimBrightness
+            window.attributes = lp
+        }
+    }
+
+    private fun wakeScreen() {
+        isDimmed = false
+        val lp = window.attributes
+        lp.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+        window.attributes = lp
+        resetDimTimer()
+    }
+
+    private fun resetDimTimer() {
+        dimHandler.removeCallbacks(dimRunnable)
+        dimHandler.postDelayed(dimRunnable, dimDelay)
+    }
+
     private fun enableImmersiveMode() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         val controller = WindowInsetsControllerCompat(window, window.decorView)
@@ -86,6 +137,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        resetDimTimer()
         requestPermissions()
         autoLoginSumUp()
 
@@ -124,9 +176,26 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+        wakeScreen()
+        return super.dispatchTouchEvent(ev)
+    }
+
     override fun onResume() {
         super.onResume()
         startKioskMode()
+        resetDimTimer()
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        proximitySensor = sensorManager?.getDefaultSensor(Sensor.TYPE_PROXIMITY)
+        proximitySensor?.let {
+            sensorManager?.registerListener(proximityListener, it, SensorManager.SENSOR_DELAY_NORMAL)
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        dimHandler.removeCallbacks(dimRunnable)
+        sensorManager?.unregisterListener(proximityListener)
     }
 
     @Suppress("DEPRECATION")
