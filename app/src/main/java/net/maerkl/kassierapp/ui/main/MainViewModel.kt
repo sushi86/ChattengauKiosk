@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.util.Calendar
 import java.util.TimeZone
@@ -26,11 +27,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as KassierApplication
     private val articleDao = app.database.articleDao()
     private val saleDao = app.database.saleDao()
+    private val collectionDao = app.database.articleCollectionDao()
     private val settings = app.settingsDataStore
     private var nextManualPriceId = -1L
 
     private val activeCollectionId = settings.activeCollectionId
         .stateIn(viewModelScope, SharingStarted.Eagerly, 1L)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val activeCollectionName: StateFlow<String> = activeCollectionId.flatMapLatest { collectionId ->
+        collectionDao.getAll().map { collections ->
+            collections.find { it.id == collectionId }?.name ?: ""
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val articles = activeCollectionId.flatMapLatest { collectionId ->

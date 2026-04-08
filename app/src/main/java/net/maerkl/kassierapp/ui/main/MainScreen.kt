@@ -89,6 +89,7 @@ fun MainScreen(
     val articles by viewModel.articles.collectAsState(initial = emptyList())
     val cart by viewModel.cart.collectAsState()
     val remainingStock by viewModel.remainingStock.collectAsState()
+    val collectionName by viewModel.activeCollectionName.collectAsState()
     var manualPriceArticle by remember { mutableStateOf<Article?>(null) }
     var stockEditArticle by remember { mutableStateOf<Article?>(null) }
     var batteryPercent by remember { mutableStateOf(0) }
@@ -142,6 +143,14 @@ fun MainScreen(
                             color = if (sumUpLoggedIn) Color(0xFF90EE90) else Color(0xFFFF6B6B),
                             fontSize = 13.sp
                         )
+                        if (collectionName.isNotBlank()) {
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Text(
+                                text = "\uD83D\uDCC1 $collectionName",
+                                color = Color.White,
+                                fontSize = 13.sp
+                            )
+                        }
                     }
                 },
                 actions = {
