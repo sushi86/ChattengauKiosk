@@ -1,0 +1,22 @@
+*.iml
+.gradle
+.idea
+.kotlin
+.DS_Store
+.externalNativeBuild
+.cxx
+local.properties
+
+/build
+/captures
+/app/build
+
+# Claude / Superpowers
+.claude
+.superpowers
+
+# Docs (internal plans/specs)
+docs
+
+# Prompt file
+prompt.md
