@@ -197,7 +197,7 @@ fun MainScreen(
                             }
                         },
                         onLongClick = {
-                            if (article.stockQuantity != null) {
+                            if (!article.isManualPrice) {
                                 stockEditArticle = article
                             }
                         }
@@ -230,7 +230,7 @@ fun MainScreen(
     stockEditArticle?.let { article ->
         StockEditDialog(
             article = article,
-            currentStock = remainingStock[article.name] ?: article.stockQuantity ?: 0,
+            currentStock = remainingStock[article.name],
             onDismiss = { stockEditArticle = null },
             onSave = { newQuantity ->
                 viewModel.updateStockQuantity(article, newQuantity)
@@ -418,11 +418,11 @@ private fun AutoSizeText(
 @Composable
 private fun StockEditDialog(
     article: Article,
-    currentStock: Int,
+    currentStock: Int?,
     onDismiss: () -> Unit,
     onSave: (Int?) -> Unit
 ) {
-    var stockText by remember { mutableStateOf(currentStock.toString()) }
+    var stockText by remember { mutableStateOf(currentStock?.toString() ?: "") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -481,12 +481,20 @@ private fun StockEditDialog(
                         Text("+", fontSize = 24.sp, fontWeight = FontWeight.Bold)
                     }
                 }
+                if (stockText.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    TextButton(onClick = {
+                        onSave(null)
+                    }) {
+                        Text("Mengenverfolgung entfernen", color = MaterialTheme.colorScheme.error)
+                    }
+                }
             }
         },
         confirmButton = {
             TextButton(onClick = {
                 val stock = stockText.toIntOrNull()
-                onSave(stock)
+                if (stock != null) onSave(stock)
             }) { Text("Speichern") }
         },
         dismissButton = {
