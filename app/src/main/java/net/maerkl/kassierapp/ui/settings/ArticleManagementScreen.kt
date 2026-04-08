@@ -162,6 +162,14 @@ fun ArticleManagementScreen(
                                     "${article.emoji} ${article.name} \u2014 ${String.format("%.2f", article.price)} \u20AC",
                                     modifier = Modifier.weight(1f)
                                 )
+                                if (article.stockQuantity != null) {
+                                    Text(
+                                        "Menge: ${article.stockQuantity}",
+                                        fontSize = 13.sp,
+                                        color = Color.Gray,
+                                        modifier = Modifier.padding(end = 8.dp)
+                                    )
+                                }
                                 IconButton(onClick = { editingArticle = article }) {
                                     Text("\u270F\uFE0F", fontSize = 16.sp)
                                 }

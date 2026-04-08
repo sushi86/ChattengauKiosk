@@ -219,18 +219,20 @@ private fun ArticleCard(article: Article, remainingStock: Int?, onClick: () -> U
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .height(140.dp)
             .clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxSize()
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             Text(article.emoji, fontSize = 40.sp)
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             AutoSizeText(
                 text = if (article.isManualPrice) "Freier Preis" else article.name,
                 fontWeight = FontWeight.Bold,
