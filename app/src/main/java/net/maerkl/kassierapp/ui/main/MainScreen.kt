@@ -1,7 +1,9 @@
 package net.maerkl.kassierapp.ui.main
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -52,6 +54,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.content.Context
@@ -219,40 +222,49 @@ private fun ArticleCard(article: Article, remainingStock: Int?, onClick: () -> U
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(140.dp)
             .clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(article.emoji, fontSize = 40.sp)
-            Spacer(modifier = Modifier.height(4.dp))
-            AutoSizeText(
-                text = if (article.isManualPrice) "Freier Preis" else article.name,
-                fontWeight = FontWeight.Bold,
-                maxFontSize = 16.sp,
-                minFontSize = 10.sp
-            )
-            if (!article.isManualPrice) {
-                Text(
-                    String.format("%.2f €", article.price),
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(article.emoji, fontSize = 40.sp)
+                Spacer(modifier = Modifier.height(8.dp))
+                AutoSizeText(
+                    text = if (article.isManualPrice) "Freier Preis" else article.name,
+                    fontWeight = FontWeight.Bold,
+                    maxFontSize = 16.sp,
+                    minFontSize = 10.sp
                 )
+                if (!article.isManualPrice) {
+                    Text(
+                        String.format("%.2f €", article.price),
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
             if (remainingStock != null) {
-                Text(
-                    text = if (remainingStock > 0) "Noch $remainingStock" else "Ausverkauft",
-                    color = if (remainingStock > 0) Color.Gray else Color.Red,
-                    fontSize = 11.sp,
-                    fontWeight = if (remainingStock <= 0) FontWeight.Bold else FontWeight.Normal
-                )
+                val badgeColor = if (remainingStock > 0) Color(0xFF666666) else Color.Red
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .background(badgeColor, shape = RoundedCornerShape(8.dp))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = if (remainingStock > 0) "$remainingStock" else "0",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
     }
