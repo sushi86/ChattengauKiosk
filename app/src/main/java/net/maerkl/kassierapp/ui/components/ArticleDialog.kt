@@ -26,12 +26,13 @@ import net.maerkl.kassierapp.data.local.Article
 fun ArticleDialog(
     article: Article? = null,
     onDismiss: () -> Unit,
-    onSave: (name: String, price: Double, emoji: String, isActive: Boolean) -> Unit
+    onSave: (name: String, price: Double, emoji: String, isActive: Boolean, stockQuantity: Int?) -> Unit
 ) {
     var name by remember { mutableStateOf(article?.name ?: "") }
     var priceText by remember { mutableStateOf(article?.let { String.format("%.2f", it.price) } ?: "") }
     var emoji by remember { mutableStateOf(article?.emoji ?: "") }
     var isActive by remember { mutableStateOf(article?.isActive ?: true) }
+    var stockText by remember { mutableStateOf(article?.stockQuantity?.toString() ?: "") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -60,6 +61,14 @@ fun ArticleDialog(
                     singleLine = true
                 )
                 Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = stockText,
+                    onValueChange = { stockText = it },
+                    label = { Text("Menge (optional)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = isActive, onCheckedChange = { isActive = it })
                     Spacer(modifier = Modifier.width(4.dp))
@@ -72,7 +81,8 @@ fun ArticleDialog(
                 onClick = {
                     val price = priceText.replace(",", ".").toDoubleOrNull()
                     if (name.isNotBlank() && price != null && price > 0) {
-                        onSave(name, price, emoji, isActive)
+                        val stock = stockText.toIntOrNull()
+                        onSave(name, price, emoji, isActive, stock)
                     }
                 }
             ) { Text("Speichern") }
