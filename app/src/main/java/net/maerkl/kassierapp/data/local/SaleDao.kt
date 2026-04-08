@@ -11,26 +11,30 @@ interface SaleDao {
     suspend fun insertAll(sales: List<Sale>)
 
     @Query("""
-        SELECT (timestamp / 86400000) * 86400000 AS dayTimestamp,
-               SUM(articlePrice * quantity) AS totalRevenue,
-               SUM(quantity) AS totalItems
-        FROM sales
-        WHERE collectionId = :collectionId
-        GROUP BY timestamp / 86400000
+        SELECT (s.timestamp / 86400000) * 86400000 AS dayTimestamp,
+               SUM(CASE WHEN t.refunded = 0 THEN s.articlePrice * s.quantity ELSE 0.0 END) AS totalRevenue,
+               SUM(CASE WHEN t.refunded = 0 THEN s.quantity ELSE 0 END) AS totalItems
+        FROM sales s
+        LEFT JOIN transactions t ON s.transactionId = t.id
+        WHERE s.collectionId = :collectionId
+        GROUP BY s.timestamp / 86400000
         ORDER BY dayTimestamp DESC
     """)
     fun getDailySummaries(collectionId: Long): Flow<List<DailySummary>>
 
     @Query("""
-        SELECT articleName, articleEmoji,
-               SUM(CASE WHEN paymentMethod = 'BAR' THEN quantity ELSE 0 END) AS cashQuantity,
-               SUM(CASE WHEN paymentMethod = 'BAR' THEN articlePrice * quantity ELSE 0.0 END) AS cashRevenue,
-               SUM(CASE WHEN paymentMethod = 'KARTE' THEN quantity ELSE 0 END) AS cardQuantity,
-               SUM(CASE WHEN paymentMethod = 'KARTE' THEN articlePrice * quantity ELSE 0.0 END) AS cardRevenue
-        FROM sales
-        WHERE collectionId = :collectionId AND timestamp >= :startOfDay AND timestamp < :endOfDay
-        GROUP BY articleName, articleEmoji
-        ORDER BY articleName ASC
+        SELECT s.articleName, s.articleEmoji,
+               SUM(CASE WHEN t.refunded = 0 AND s.paymentMethod = 'BAR' THEN s.quantity ELSE 0 END) AS cashQuantity,
+               SUM(CASE WHEN t.refunded = 0 AND s.paymentMethod = 'BAR' THEN s.articlePrice * s.quantity ELSE 0.0 END) AS cashRevenue,
+               SUM(CASE WHEN t.refunded = 0 AND s.paymentMethod = 'KARTE' THEN s.quantity ELSE 0 END) AS cardQuantity,
+               SUM(CASE WHEN t.refunded = 0 AND s.paymentMethod = 'KARTE' THEN s.articlePrice * s.quantity ELSE 0.0 END) AS cardRevenue,
+               SUM(CASE WHEN t.refunded = 1 THEN s.quantity ELSE 0 END) AS refundedQuantity,
+               SUM(CASE WHEN t.refunded = 1 THEN s.articlePrice * s.quantity ELSE 0.0 END) AS refundedRevenue
+        FROM sales s
+        LEFT JOIN transactions t ON s.transactionId = t.id
+        WHERE s.collectionId = :collectionId AND s.timestamp >= :startOfDay AND s.timestamp < :endOfDay
+        GROUP BY s.articleName, s.articleEmoji
+        ORDER BY s.articleName ASC
     """)
     fun getArticleSummariesForDay(collectionId: Long, startOfDay: Long, endOfDay: Long): Flow<List<ArticleDaySummary>>
 
@@ -38,10 +42,11 @@ interface SaleDao {
     suspend fun deleteAllByCollection(collectionId: Long)
 
     @Query("""
-        SELECT articleName, SUM(quantity) AS totalSold
-        FROM sales
-        WHERE collectionId = :collectionId AND timestamp >= :startOfDay
-        GROUP BY articleName
+        SELECT s.articleName, SUM(s.quantity) AS totalSold
+        FROM sales s
+        LEFT JOIN transactions t ON s.transactionId = t.id
+        WHERE s.collectionId = :collectionId AND s.timestamp >= :startOfDay AND (t.refunded = 0 OR t.id IS NULL)
+        GROUP BY s.articleName
     """)
     fun getSoldQuantitiesToday(collectionId: Long, startOfDay: Long): Flow<List<SoldQuantity>>
 

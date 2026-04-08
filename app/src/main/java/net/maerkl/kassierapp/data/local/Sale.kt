@@ -28,7 +28,9 @@ data class ArticleDaySummary(
     val cashQuantity: Int,
     val cashRevenue: Double,
     val cardQuantity: Int,
-    val cardRevenue: Double
+    val cardRevenue: Double,
+    val refundedQuantity: Int,
+    val refundedRevenue: Double
 )
 
 data class SoldQuantity(
