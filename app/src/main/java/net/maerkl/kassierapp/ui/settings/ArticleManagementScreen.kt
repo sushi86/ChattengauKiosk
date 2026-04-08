@@ -201,8 +201,8 @@ fun ArticleManagementScreen(
     if (showAddDialog) {
         ArticleDialog(
             onDismiss = { showAddDialog = false },
-            onSave = { name, price, emoji, isActive ->
-                viewModel.addArticle(name, price, emoji, isActive, articles.size)
+            onSave = { name, price, emoji, isActive, stockQuantity ->
+                viewModel.addArticle(name, price, emoji, isActive, articles.size, stockQuantity)
                 showAddDialog = false
             }
         )
@@ -212,8 +212,8 @@ fun ArticleManagementScreen(
         ArticleDialog(
             article = article,
             onDismiss = { editingArticle = null },
-            onSave = { name, price, emoji, isActive ->
-                viewModel.updateArticle(article, name, price, emoji, isActive)
+            onSave = { name, price, emoji, isActive, stockQuantity ->
+                viewModel.updateArticle(article, name, price, emoji, isActive, stockQuantity)
                 editingArticle = null
             }
         )

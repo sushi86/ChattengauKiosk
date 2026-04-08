@@ -94,17 +94,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun addArticle(name: String, price: Double, emoji: String, isActive: Boolean, currentCount: Int) {
+    fun addArticle(name: String, price: Double, emoji: String, isActive: Boolean, currentCount: Int, stockQuantity: Int?) {
         viewModelScope.launch {
             val collectionId = activeCollectionId.value
-            dao.insert(Article(name = name, price = price, emoji = emoji, isActive = isActive, sortOrder = currentCount, collectionId = collectionId))
+            dao.insert(Article(name = name, price = price, emoji = emoji, isActive = isActive, sortOrder = currentCount, collectionId = collectionId, stockQuantity = stockQuantity))
             bumpManualPriceToEnd(collectionId)
         }
     }
 
-    fun updateArticle(article: Article, name: String, price: Double, emoji: String, isActive: Boolean) {
+    fun updateArticle(article: Article, name: String, price: Double, emoji: String, isActive: Boolean, stockQuantity: Int?) {
         viewModelScope.launch {
-            dao.update(article.copy(name = name, price = price, emoji = emoji, isActive = isActive))
+            dao.update(article.copy(name = name, price = price, emoji = emoji, isActive = isActive, stockQuantity = stockQuantity))
         }
     }
 
