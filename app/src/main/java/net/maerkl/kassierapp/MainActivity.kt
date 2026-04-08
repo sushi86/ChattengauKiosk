@@ -71,7 +71,15 @@ class MainActivity : ComponentActivity() {
     private var sensorManager: SensorManager? = null
     private var proximitySensor: Sensor? = null
 
-    private val dimRunnable = Runnable { dimScreen() }
+    private val dimRunnable = Runnable {
+        if (!isCharging()) dimScreen()
+    }
+
+    private fun isCharging(): Boolean {
+        val batteryStatus = registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
+        return status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
+    }
 
     private val proximityListener = object : SensorEventListener {
         override fun onSensorChanged(event: SensorEvent) {
