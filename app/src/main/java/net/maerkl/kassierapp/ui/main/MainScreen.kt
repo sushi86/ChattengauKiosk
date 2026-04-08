@@ -43,6 +43,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.runtime.mutableStateOf
@@ -53,6 +54,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.net.wifi.WifiManager
+import android.os.BatteryManager
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
 import net.maerkl.kassierapp.R
 import net.maerkl.kassierapp.data.local.Article
 import net.maerkl.kassierapp.data.local.isManualPrice
@@ -67,9 +77,41 @@ fun MainScreen(
     sumUpLoggedIn: Boolean,
     onNavigateToSettings: () -> Unit
 ) {
+    val context = LocalContext.current
     val articles by viewModel.articles.collectAsState(initial = emptyList())
     val cart by viewModel.cart.collectAsState()
     var manualPriceArticle by remember { mutableStateOf<Article?>(null) }
+    var batteryPercent by remember { mutableStateOf(0) }
+    var batteryCharging by remember { mutableStateOf(false) }
+    var wifiName by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            // Battery
+            val batteryStatus = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            val level = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+            val scale = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+            if (level >= 0 && scale > 0) batteryPercent = (level * 100) / scale
+            val status = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+            batteryCharging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+
+            // WiFi
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val network = cm.activeNetwork
+            val caps = network?.let { cm.getNetworkCapabilities(it) }
+            val hasWifi = caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+            if (hasWifi) {
+                val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+                @Suppress("DEPRECATION")
+                val ssid = wm.connectionInfo.ssid?.removePrefix("\"")?.removeSuffix("\"")
+                wifiName = if (ssid != null && ssid != "<unknown ssid>") ssid else "Verbunden"
+            } else {
+                wifiName = null
+            }
+
+            delay(30_000L)
+        }
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -93,6 +135,24 @@ fun MainScreen(
                     }
                 },
                 actions = {
+                    val batteryColor = when {
+                        batteryCharging -> Color(0xFF90EE90)
+                        batteryPercent <= 15 -> Color(0xFFFF6B6B)
+                        batteryPercent <= 30 -> Color(0xFFFFD700)
+                        else -> Color.White
+                    }
+                    Text(
+                        text = if (wifiName != null) "\uD83D\uDCF6 $wifiName" else "\uD83D\uDCF5 Kein WLAN",
+                        color = if (wifiName != null) Color.White else Color(0xFFFF6B6B),
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    Text(
+                        text = if (batteryCharging) "\u26A1 $batteryPercent%" else "\uD83D\uDD0B $batteryPercent%",
+                        color = batteryColor,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(end = 4.dp)
+                    )
                     TextButton(onClick = onNavigateToSettings) {
                         Text("\u2699\uFE0F Einstellungen", color = Color.White)
                     }

@@ -24,7 +24,10 @@ class KassierApplication : Application() {
 
         if (dpm.isDeviceOwnerApp(packageName)) {
             // Erlaube dieser App, Lock Task Mode zu nutzen
-            dpm.setLockTaskPackages(adminComponent, arrayOf(packageName))
+            dpm.setLockTaskPackages(adminComponent, arrayOf(
+                packageName,
+                "com.android.settings"  // Erlaubt Zugriff auf Android-Systemeinstellungen im Kiosk-Modus
+            ))
         }
     }
 }

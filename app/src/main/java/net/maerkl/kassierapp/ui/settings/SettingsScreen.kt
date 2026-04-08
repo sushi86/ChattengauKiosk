@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -47,16 +48,23 @@ fun SettingsScreen(
     onLogin: () -> Unit,
     onOpenCardReader: () -> Unit,
     onNavigateToStatistics: () -> Unit,
-    onNavigateToArticles: () -> Unit
+    onNavigateToArticles: () -> Unit,
+    onOpenWifiSettings: () -> Unit,
+    onExitKiosk: () -> Unit
 ) {
     val affiliateKey by viewModel.affiliateKey.collectAsState()
     val oauthToken by viewModel.oauthToken.collectAsState()
+    val merchantInfo by viewModel.merchantInfo.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
     var showPinChangeDialog by remember { mutableStateOf(false) }
 
     var editAffiliateKey by remember(affiliateKey) { mutableStateOf(affiliateKey) }
     var editOauthToken by remember(oauthToken) { mutableStateOf(oauthToken) }
+
+    LaunchedEffect(Unit) {
+        viewModel.fetchMerchantInfo()
+    }
 
     LaunchedEffect(Unit) {
         viewModel.snackbarMessage.collect { message ->
@@ -107,6 +115,15 @@ fun SettingsScreen(
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
+                        if (merchantInfo != null) {
+                            Text(
+                                text = "Konto: $merchantInfo",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Green900
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
                         OutlinedTextField(
                             value = editAffiliateKey,
                             onValueChange = { editAffiliateKey = it },
@@ -129,7 +146,10 @@ fun SettingsScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Button(
-                                onClick = { viewModel.saveSumUpConfig(editAffiliateKey, editOauthToken) },
+                                onClick = {
+                                    viewModel.saveSumUpConfig(editAffiliateKey, editOauthToken)
+                                    viewModel.fetchMerchantInfo()
+                                },
                                 colors = ButtonDefaults.buttonColors(containerColor = Green900)
                             ) { Text("Speichern") }
                             Button(onClick = onLogin) { Text("Login") }
@@ -151,6 +171,29 @@ fun SettingsScreen(
                     onClick = onNavigateToStatistics,
                     colors = ButtonDefaults.buttonColors(containerColor = Green900)
                 ) { Text("\uD83D\uDCCA Verkaufsstatistik") }
+            }
+
+            // System Section
+            item {
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("System", style = MaterialTheme.typography.titleLarge)
+            }
+
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = onOpenWifiSettings,
+                        colors = ButtonDefaults.buttonColors(containerColor = Green900)
+                    ) { Text("WLAN-Einstellungen") }
+                    Button(
+                        onClick = onExitKiosk,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) { Text("Kiosk beenden") }
+                }
             }
 
             // PIN Change Section

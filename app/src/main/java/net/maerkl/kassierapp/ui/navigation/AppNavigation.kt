@@ -13,6 +13,9 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import android.content.Intent
+import android.provider.Settings
+import androidx.compose.ui.platform.LocalContext
 import net.maerkl.kassierapp.ui.components.PinDialog
 import net.maerkl.kassierapp.ui.main.MainScreen
 import net.maerkl.kassierapp.ui.main.MainViewModel
@@ -33,6 +36,7 @@ fun AppNavigation(
     onResumeKiosk: () -> Unit
 ) {
     val navController = rememberNavController()
+    val context = LocalContext.current
     val mainViewModel: MainViewModel = viewModel()
     val settingsViewModel: SettingsViewModel = viewModel()
     var showPinDialog by remember { mutableStateOf(false) }
@@ -61,14 +65,18 @@ fun AppNavigation(
         composable("settings") {
             SettingsScreen(
                 viewModel = settingsViewModel,
-                onNavigateBack = {
-                    onResumeKiosk()
-                    navController.popBackStack()
-                },
+                onNavigateBack = { navController.popBackStack() },
                 onLogin = onLogin,
                 onOpenCardReader = onOpenCardReader,
                 onNavigateToStatistics = { navController.navigate("statistics") },
-                onNavigateToArticles = { navController.navigate("articles") }
+                onNavigateToArticles = { navController.navigate("articles") },
+                onOpenWifiSettings = {
+                    context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
+                },
+                onExitKiosk = {
+                    onPauseKiosk()
+                    (context as? android.app.Activity)?.moveTaskToBack(true)
+                }
             )
         }
         composable("articles") {
@@ -92,7 +100,6 @@ fun AppNavigation(
             correctPin = pin,
             onSuccess = {
                 showPinDialog = false
-                onPauseKiosk()
                 navController.navigate("settings")
             },
             onDismiss = { showPinDialog = false }

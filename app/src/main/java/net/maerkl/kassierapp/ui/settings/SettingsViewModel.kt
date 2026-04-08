@@ -3,14 +3,21 @@ package net.maerkl.kassierapp.ui.settings
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 import net.maerkl.kassierapp.KassierApplication
 import net.maerkl.kassierapp.data.local.AppDatabase
 import net.maerkl.kassierapp.data.local.Article
@@ -42,6 +49,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     private val _snackbarMessage = MutableSharedFlow<String>()
     val snackbarMessage = _snackbarMessage.asSharedFlow()
+
+    private val _merchantInfo = MutableStateFlow<String?>(null)
+    val merchantInfo = _merchantInfo.asStateFlow()
 
     fun selectCollection(id: Long) {
         viewModelScope.launch {
@@ -116,6 +126,45 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private suspend fun bumpManualPriceToEnd(collectionId: Long) {
         val maxSort = dao.getMaxSortOrderExcluding(MANUAL_PRICE_ARTICLE_NAME, collectionId)
         dao.updateManualPriceSortOrder(MANUAL_PRICE_ARTICLE_NAME, collectionId, maxSort + 1)
+    }
+
+    fun fetchMerchantInfo() {
+        viewModelScope.launch {
+            val token = oauthToken.value
+            if (token.isBlank()) {
+                _merchantInfo.value = null
+                return@launch
+            }
+            try {
+                val json = withContext(Dispatchers.IO) {
+                    val url = URL("https://api.sumup.com/v0.1/me")
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.setRequestProperty("Authorization", "Bearer $token")
+                    conn.connectTimeout = 5000
+                    conn.readTimeout = 5000
+                    try {
+                        if (conn.responseCode == 200) {
+                            conn.inputStream.bufferedReader().readText()
+                        } else null
+                    } finally {
+                        conn.disconnect()
+                    }
+                }
+                if (json != null) {
+                    val obj = JSONObject(json)
+                    val merchantCode = obj.optString("merchant_code", "")
+                    val personalProfile = obj.optJSONObject("personal_profile")
+                    val firstName = personalProfile?.optString("first_name", "") ?: ""
+                    val lastName = personalProfile?.optString("last_name", "") ?: ""
+                    val name = "$firstName $lastName".trim()
+                    _merchantInfo.value = if (name.isNotEmpty()) "$name ($merchantCode)" else merchantCode
+                } else {
+                    _merchantInfo.value = null
+                }
+            } catch (_: Exception) {
+                _merchantInfo.value = null
+            }
+        }
     }
 
     fun saveSumUpConfig(affiliateKey: String, oauthToken: String) {
