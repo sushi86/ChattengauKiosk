@@ -172,14 +172,16 @@ fun MainScreen(
                         Text(
                             text = if (sumUpLoggedIn) "\u2705 Terminal bereit" else "\u274C Nicht verbunden",
                             color = if (sumUpLoggedIn) Color(0xFF90EE90) else Color(0xFFFF6B6B),
-                            fontSize = 13.sp
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
                         )
                         if (collectionName.isNotBlank()) {
                             Spacer(modifier = Modifier.width(16.dp))
                             Text(
                                 text = "\uD83D\uDCC1 $collectionName",
                                 color = Color.White,
-                                fontSize = 13.sp
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
@@ -194,21 +196,24 @@ fun MainScreen(
                     Text(
                         text = if (wifiName != null) "\uD83D\uDCF6 $wifiName" else "\uD83D\uDCF5 Kein WLAN",
                         color = if (wifiName != null) Color.White else Color(0xFFFF6B6B),
-                        fontSize = 13.sp,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(end = 8.dp)
                     )
                     val etaSuffix = if (!batteryCharging && batteryEta != null) " ($batteryEta)" else ""
                     Text(
                         text = if (batteryCharging) "\u26A1 $batteryPercent%" else "\uD83D\uDD0B $batteryPercent%$etaSuffix",
                         color = batteryColor,
-                        fontSize = 13.sp,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(end = 8.dp)
                     )
                     if (currentTime.isNotBlank()) {
                         Text(
                             text = "\uD83D\uDD50 $currentTime",
                             color = Color.White,
-                            fontSize = 13.sp,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(end = 4.dp)
                         )
                     }
