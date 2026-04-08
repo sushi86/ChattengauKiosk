@@ -139,9 +139,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun updateStockQuantity(article: Article, newQuantity: Int?) {
+    fun updateStockQuantity(article: Article, newRemaining: Int?) {
         viewModelScope.launch {
-            articleDao.update(article.copy(stockQuantity = newQuantity))
+            if (newRemaining == null) {
+                articleDao.update(article.copy(stockQuantity = null))
+            } else {
+                val soldToday = remainingStock.value[article.name]?.let { remaining ->
+                    (article.stockQuantity ?: 0) - remaining
+                } ?: 0
+                articleDao.update(article.copy(stockQuantity = newRemaining + soldToday))
+            }
         }
     }
 
