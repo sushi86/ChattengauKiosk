@@ -293,8 +293,8 @@ class MainActivity : ComponentActivity() {
 
         when (requestCode) {
             REQUEST_CODE_CHECKOUT -> {
-                val resultCode = data?.extras?.getInt(SumUpAPI.Response.RESULT_CODE)
-                if (resultCode == SumUpAPI.Response.ResultCode.SUCCESSFUL) {
+                val sumUpResult = data?.extras?.getInt(SumUpAPI.Response.RESULT_CODE)
+                if (sumUpResult == SumUpAPI.Response.ResultCode.SUCCESSFUL) {
                     val txCode = data?.extras?.getString(SumUpAPI.Response.TX_CODE)
                     mainViewModel?.onPaymentSuccess(txCode)
                 } else {

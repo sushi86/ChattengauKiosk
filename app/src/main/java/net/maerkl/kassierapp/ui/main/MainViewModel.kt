@@ -182,6 +182,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val now = System.currentTimeMillis()
         val collectionId = activeCollectionId.value
         val total = cartTotal
+        val cartSnapshot = _cart.value
 
         viewModelScope.launch {
             val transactionId = transactionDao.insert(
@@ -194,7 +195,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             )
 
-            val sales = _cart.value.map { item ->
+            val sales = cartSnapshot.map { item ->
                 Sale(
                     articleName = item.article.name,
                     articleEmoji = item.article.emoji,
