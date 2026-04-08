@@ -207,6 +207,7 @@ private fun TableHeaderRow() {
         Text("Artikel", fontWeight = FontWeight.Bold, modifier = Modifier.weight(2f))
         Text("Bar", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), fontSize = 13.sp)
         Text("Karte", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), fontSize = 13.sp)
+        Text("Storno", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), fontSize = 13.sp, color = Color.Red)
         Text("Gesamt", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), fontSize = 13.sp)
     }
 }
@@ -235,6 +236,10 @@ private fun ArticleRow(article: ArticleDaySummary) {
             Text(String.format("%.2f \u20AC", article.cardRevenue), fontSize = 12.sp, color = Color.Gray)
         }
         Column(modifier = Modifier.weight(1f)) {
+            Text("${article.refundedQuantity}x", fontSize = 13.sp, color = Color.Red)
+            Text(String.format("%.2f \u20AC", article.refundedRevenue), fontSize = 12.sp, color = Color.Red)
+        }
+        Column(modifier = Modifier.weight(1f)) {
             Text("${totalQty}x", fontSize = 13.sp, fontWeight = FontWeight.Bold)
             Text(String.format("%.2f \u20AC", totalRev), fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
@@ -247,6 +252,8 @@ private fun TotalsRow(articles: List<ArticleDaySummary>) {
     val totalCashRev = articles.sumOf { it.cashRevenue }
     val totalCardQty = articles.sumOf { it.cardQuantity }
     val totalCardRev = articles.sumOf { it.cardRevenue }
+    val totalRefundQty = articles.sumOf { it.refundedQuantity }
+    val totalRefundRev = articles.sumOf { it.refundedRevenue }
     val totalQty = totalCashQty + totalCardQty
     val totalRev = totalCashRev + totalCardRev
 
@@ -264,6 +271,10 @@ private fun TotalsRow(articles: List<ArticleDaySummary>) {
         Column(modifier = Modifier.weight(1f)) {
             Text("${totalCardQty}x", fontSize = 13.sp, fontWeight = FontWeight.Bold)
             Text(String.format("%.2f \u20AC", totalCardRev), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text("${totalRefundQty}x", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.Red)
+            Text(String.format("%.2f \u20AC", totalRefundRev), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Red)
         }
         Column(modifier = Modifier.weight(1f)) {
             Text("${totalQty}x", fontSize = 13.sp, fontWeight = FontWeight.Bold)
