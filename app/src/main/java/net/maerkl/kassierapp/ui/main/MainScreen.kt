@@ -52,6 +52,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
@@ -487,6 +488,8 @@ private fun TransactionHistoryDialog(
     onDismiss: () -> Unit
 ) {
     val transactions by viewModel.todayTransactions.collectAsState()
+    var refundTarget by remember { mutableStateOf<net.maerkl.kassierapp.data.local.Transaction?>(null) }
+    val refundInProgress by viewModel.refundInProgress.collectAsState()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -505,6 +508,10 @@ private fun TransactionHistoryDialog(
                             .format(java.util.Date(txWithSales.transaction.timestamp))
                         val methodIcon = if (txWithSales.transaction.paymentMethod == "KARTE") "\uD83D\uDCB3" else "\uD83D\uDCB5"
 
+                        val isRefunded = txWithSales.transaction.refunded
+                        val textAlpha = if (isRefunded) 0.4f else 1f
+                        val textDecoration = if (isRefunded) TextDecoration.LineThrough else TextDecoration.None
+
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -518,13 +525,27 @@ private fun TransactionHistoryDialog(
                                 Text(
                                     text = "$time  $methodIcon",
                                     fontSize = 16.sp,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.Medium,
+                                    textDecoration = textDecoration,
+                                    modifier = Modifier.alpha(textAlpha)
                                 )
-                                Text(
-                                    text = String.format("%.2f \u20AC", txWithSales.transaction.totalAmount),
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = String.format("%.2f \u20AC", txWithSales.transaction.totalAmount),
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        textDecoration = textDecoration,
+                                        modifier = Modifier.alpha(textAlpha)
+                                    )
+                                    if (isRefunded) {
+                                        Text(
+                                            text = "  Storniert",
+                                            fontSize = 12.sp,
+                                            color = Color.Red,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
                             }
                             txWithSales.sales.forEach { sale ->
                                 Row(
@@ -536,13 +557,27 @@ private fun TransactionHistoryDialog(
                                     Text(
                                         text = "${sale.articleEmoji} ${sale.quantity}\u00D7 ${sale.articleName}",
                                         fontSize = 14.sp,
-                                        color = Color.Gray
+                                        color = Color.Gray,
+                                        textDecoration = textDecoration,
+                                        modifier = Modifier.alpha(textAlpha)
                                     )
                                     Text(
                                         text = String.format("%.2f \u20AC", sale.articlePrice * sale.quantity),
                                         fontSize = 14.sp,
-                                        color = Color.Gray
+                                        color = Color.Gray,
+                                        textDecoration = textDecoration,
+                                        modifier = Modifier.alpha(textAlpha)
                                     )
+                                }
+                            }
+                            if (!isRefunded) {
+                                Button(
+                                    onClick = { refundTarget = txWithSales.transaction },
+                                    enabled = !refundInProgress,
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                    modifier = Modifier.padding(top = 4.dp)
+                                ) {
+                                    Text("Stornieren", fontSize = 12.sp)
                                 }
                             }
                         }
@@ -555,6 +590,37 @@ private fun TransactionHistoryDialog(
             TextButton(onClick = onDismiss) { Text("Schliessen") }
         }
     )
+
+    refundTarget?.let { transaction ->
+        val isCard = transaction.paymentMethod == "KARTE"
+        AlertDialog(
+            onDismissRequest = { refundTarget = null },
+            title = { Text("Transaktion stornieren?") },
+            text = {
+                Text(
+                    if (isCard)
+                        "M\u00F6chtest du diese Transaktion wirklich stornieren? Der Betrag wird auf die Karte zur\u00FCckerstattet."
+                    else
+                        "M\u00F6chtest du diese Transaktion wirklich stornieren?"
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.refundTransaction(transaction)
+                        refundTarget = null
+                    }
+                ) {
+                    Text("Stornieren", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { refundTarget = null }) {
+                    Text("Abbrechen")
+                }
+            }
+        )
+    }
 }
 
 @Composable
