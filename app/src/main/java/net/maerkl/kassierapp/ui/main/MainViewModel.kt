@@ -10,8 +10,11 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
+import java.util.Calendar
+import java.util.TimeZone
 import kotlinx.coroutines.launch
 import net.maerkl.kassierapp.KassierApplication
 import net.maerkl.kassierapp.data.local.Article
@@ -32,6 +35,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     @OptIn(ExperimentalCoroutinesApi::class)
     val articles = activeCollectionId.flatMapLatest { collectionId ->
         articleDao.getActiveArticles(collectionId)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val remainingStock: StateFlow<Map<String, Int>> = activeCollectionId.flatMapLatest { collectionId ->
+        val soldFlow = saleDao.getSoldQuantitiesToday(collectionId, startOfToday())
+        val articlesFlow = articleDao.getActiveArticles(collectionId)
+        combine(articlesFlow, soldFlow) { articleList, soldList ->
+            val soldMap = soldList.associate { it.articleName to it.totalSold }
+            articleList
+                .filter { it.stockQuantity != null }
+                .associate { article ->
+                    val sold = soldMap[article.name] ?: 0
+                    article.name to (article.stockQuantity!! - sold)
+                }
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    private fun startOfToday(): Long {
+        val cal = Calendar.getInstance(TimeZone.getDefault())
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        return cal.timeInMillis
     }
 
     private val _cart = MutableStateFlow<List<CartItem>>(emptyList())
