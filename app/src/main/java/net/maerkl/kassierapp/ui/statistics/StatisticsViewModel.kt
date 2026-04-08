@@ -44,21 +44,23 @@ class StatisticsViewModel(application: Application) : AndroidViewModel(applicati
     fun exportCsv(dayTimestamp: Long, articles: List<ArticleDaySummary>): Intent {
         val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.GERMANY).format(Date(dayTimestamp))
         val bom = "\uFEFF"
-        val header = "Datum;Artikel;Anzahl Bar;Umsatz Bar;Anzahl Karte;Umsatz Karte;Anzahl Gesamt;Umsatz Gesamt"
+        val header = "Datum;Artikel;Anzahl Bar;Umsatz Bar;Anzahl Karte;Umsatz Karte;Anzahl Storno;Umsatz Storno;Anzahl Gesamt;Umsatz Gesamt"
 
         val rows = articles.map { a ->
             val totalQty = a.cashQuantity + a.cardQuantity
             val totalRev = a.cashRevenue + a.cardRevenue
-            "$dateStr;${a.articleEmoji} ${a.articleName};${a.cashQuantity};${fmt(a.cashRevenue)};${a.cardQuantity};${fmt(a.cardRevenue)};$totalQty;${fmt(totalRev)}"
+            "$dateStr;${a.articleEmoji} ${a.articleName};${a.cashQuantity};${fmt(a.cashRevenue)};${a.cardQuantity};${fmt(a.cardRevenue)};${a.refundedQuantity};${fmt(a.refundedRevenue)};$totalQty;${fmt(totalRev)}"
         }
 
         val totalCashRev = articles.sumOf { it.cashRevenue }
         val totalCardRev = articles.sumOf { it.cardRevenue }
+        val totalRefundRev = articles.sumOf { it.refundedRevenue }
         val totalRev = totalCashRev + totalCardRev
         val totalCashQty = articles.sumOf { it.cashQuantity }
         val totalCardQty = articles.sumOf { it.cardQuantity }
+        val totalRefundQty = articles.sumOf { it.refundedQuantity }
         val totalQty = totalCashQty + totalCardQty
-        val sumRow = ";GESAMT;$totalCashQty;${fmt(totalCashRev)};$totalCardQty;${fmt(totalCardRev)};$totalQty;${fmt(totalRev)}"
+        val sumRow = ";GESAMT;$totalCashQty;${fmt(totalCashRev)};$totalCardQty;${fmt(totalCardRev)};$totalRefundQty;${fmt(totalRefundRev)};$totalQty;${fmt(totalRev)}"
 
         val csv = bom + header + "\n" + rows.joinToString("\n") + "\n" + sumRow + "\n"
 
