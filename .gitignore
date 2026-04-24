@@ -20,3 +20,5 @@ docs
 
 # Prompt file
 prompt.md
+
+app/google-services.json
