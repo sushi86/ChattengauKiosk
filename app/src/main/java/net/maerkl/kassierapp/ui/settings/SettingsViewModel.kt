@@ -47,6 +47,31 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val oauthToken = settings.oauthToken.stateIn(viewModelScope, SharingStarted.Eagerly, "")
     val pin = settings.pin.stateIn(viewModelScope, SharingStarted.Eagerly, "0000")
 
+    private val deviceSessionRepo = app.deviceSessionRepository
+    private val authModeResolver = app.authModeResolver
+
+    val pairingState = deviceSessionRepo.pairingState
+        .stateIn(viewModelScope, SharingStarted.Eagerly, net.maerkl.kassierapp.data.repository.PairingState.Unpaired)
+
+    val authMode = authModeResolver.authMode
+        .stateIn(viewModelScope, SharingStarted.Eagerly, net.maerkl.kassierapp.data.repository.AuthMode.None)
+
+    fun unpairDevice() {
+        viewModelScope.launch {
+            deviceSessionRepo.unpair()
+            app.sumupTokenRepository.invalidate()
+            _snackbarMessage.emit("Gerät entkoppelt")
+        }
+    }
+
+    fun clearManualConfig() {
+        viewModelScope.launch {
+            settings.saveAffiliateKey("")
+            settings.saveOauthToken("")
+            _snackbarMessage.emit("Manuelle Config gelöscht")
+        }
+    }
+
     private val _snackbarMessage = MutableSharedFlow<String>()
     val snackbarMessage = _snackbarMessage.asSharedFlow()
 

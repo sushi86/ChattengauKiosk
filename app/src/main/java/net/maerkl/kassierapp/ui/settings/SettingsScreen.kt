@@ -46,7 +46,9 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     onNavigateBack: () -> Unit,
     onLogin: () -> Unit,
+    onLogout: () -> Unit,
     onOpenCardReader: () -> Unit,
+    onStartPairing: () -> Unit,
     onNavigateToStatistics: () -> Unit,
     onNavigateToArticles: () -> Unit,
     onOpenWifiSettings: () -> Unit,
@@ -105,23 +107,89 @@ fun SettingsScreen(
                 ) { Text("Artikel & Collections verwalten") }
             }
 
-            // SumUp Configuration Section
             item {
                 HorizontalDivider()
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("SumUp-Konfiguration", style = MaterialTheme.typography.titleLarge)
+                Text("Authentifizierung", style = MaterialTheme.typography.titleLarge)
             }
 
             item {
+                val authMode by viewModel.authMode.collectAsState()
+                Text(
+                    text = "Aktiver Modus: " + when (authMode) {
+                        net.maerkl.kassierapp.data.repository.AuthMode.Backend -> "Backend-Pairing"
+                        net.maerkl.kassierapp.data.repository.AuthMode.Manual -> "Manuell (veraltet)"
+                        net.maerkl.kassierapp.data.repository.AuthMode.None -> "Nicht eingerichtet"
+                    },
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            // Backend-Pairing card
+            item {
+                val pairing by viewModel.pairingState.collectAsState()
+                val authMode by viewModel.authMode.collectAsState()
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        if (merchantInfo != null) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Backend-Pairing", fontWeight = FontWeight.Bold)
                             Text(
-                                text = "Konto: $merchantInfo",
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = Green900
+                                if (authMode == net.maerkl.kassierapp.data.repository.AuthMode.Backend) "AKTIV" else "inaktiv",
+                                color = if (authMode == net.maerkl.kassierapp.data.repository.AuthMode.Backend) Green900 else Color.Gray
                             )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        when (val p = pairing) {
+                            is net.maerkl.kassierapp.data.repository.PairingState.Paired -> {
+                                Text("Verein-ID: ${p.vereinId}")
+                                Text("Geräte-ID: ${p.geraetId}")
+                                Spacer(Modifier.height(8.dp))
+                                Button(
+                                    onClick = { viewModel.unpairDevice() },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                ) { Text("Gerät entkoppeln") }
+                            }
+                            net.maerkl.kassierapp.data.repository.PairingState.Unpaired -> {
+                                Text("Kein Gerät gekoppelt.")
+                                Spacer(Modifier.height(8.dp))
+                                Button(
+                                    onClick = onStartPairing,
+                                    colors = ButtonDefaults.buttonColors(containerColor = Green900)
+                                ) { Text("Backend-Pairing starten") }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Manuell card (deprecated)
+            item {
+                val authMode by viewModel.authMode.collectAsState()
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Manuell (⚠ veraltet)", fontWeight = FontWeight.Bold)
+                            Text(
+                                if (authMode == net.maerkl.kassierapp.data.repository.AuthMode.Manual) "AKTIV" else "inaktiv",
+                                color = if (authMode == net.maerkl.kassierapp.data.repository.AuthMode.Manual) Green900 else Color.Gray
+                            )
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Wird in zukünftiger Version entfernt. Neue Einrichtung: Backend-Pairing verwenden.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        if (merchantInfo != null) {
+                            Text("Konto: $merchantInfo", fontWeight = FontWeight.Bold, color = Green900)
                             Spacer(modifier = Modifier.height(12.dp))
                         }
                         OutlinedTextField(
@@ -131,7 +199,7 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(Modifier.height(8.dp))
                         OutlinedTextField(
                             value = editOauthToken,
                             onValueChange = { editOauthToken = it },
@@ -140,7 +208,7 @@ fun SettingsScreen(
                             singleLine = true,
                             visualTransformation = PasswordVisualTransformation()
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(Modifier.height(12.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -152,7 +220,12 @@ fun SettingsScreen(
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = Green900)
                             ) { Text("Speichern") }
+                            Button(
+                                onClick = { viewModel.clearManualConfig() },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                            ) { Text("Löschen") }
                             Button(onClick = onLogin) { Text("Login") }
+                            Button(onClick = onLogout) { Text("Logout") }
                             Button(onClick = onOpenCardReader) { Text("Kartenleser") }
                         }
                     }

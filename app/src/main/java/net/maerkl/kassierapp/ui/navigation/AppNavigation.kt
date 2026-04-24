@@ -95,6 +95,7 @@ fun AppNavigation(
                 onLogin = onLogin,
                 onLogout = onLogout,
                 onOpenCardReader = onOpenCardReader,
+                onStartPairing = { navController.navigate("pairing") },
                 onNavigateToStatistics = { navController.navigate("statistics") },
                 onNavigateToArticles = { navController.navigate("articles") },
                 onOpenWifiSettings = {
