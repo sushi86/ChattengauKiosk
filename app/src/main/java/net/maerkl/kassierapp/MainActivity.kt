@@ -214,6 +214,9 @@ class MainActivity : ComponentActivity() {
             return
         }
         val app = application as KassierApplication
+        if (app.deviceSessionRepository.pairingState.value !is net.maerkl.kassierapp.data.repository.PairingState.Paired) {
+            return
+        }
         lifecycleScope.launch {
             val mode = app.authModeResolver.authMode.first()
             val login = when (mode) {
