@@ -147,11 +147,17 @@ fun SettingsScreen(
                             is net.maerkl.kassierapp.data.repository.PairingState.Paired -> {
                                 Text("Verein-ID: ${p.vereinId}")
                                 Text("Geräte-ID: ${p.geraetId}")
-                                Spacer(Modifier.height(8.dp))
-                                Button(
-                                    onClick = { viewModel.unpairDevice() },
-                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                                ) { Text("Gerät entkoppeln") }
+                                Spacer(Modifier.height(12.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Button(onClick = onOpenCardReader) { Text("Kartenleser") }
+                                    Button(
+                                        onClick = { viewModel.unpairDevice() },
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                    ) { Text("Gerät entkoppeln") }
+                                }
                             }
                             net.maerkl.kassierapp.data.repository.PairingState.Unpaired -> {
                                 Text("Kein Gerät gekoppelt.")
