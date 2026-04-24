@@ -52,7 +52,7 @@ class PairingViewModel(application: Application) : AndroidViewModel(application)
         PairingError.CodeAlreadyUsed -> "Code wurde bereits verwendet"
         PairingError.CodeExpired -> "Code ist abgelaufen, Admin bitten"
         PairingError.AppCheckRejected -> "Gerät nicht attestiert. App neu starten."
-        is PairingError.Unknown -> "Verbindungsfehler, bitte erneut versuchen"
+        is PairingError.Unknown -> "Verbindungsfehler: ${err.message ?: t.message ?: "unbekannt"}"
         null -> "Fehler: ${t.message ?: "unbekannt"}"
     }
 }
