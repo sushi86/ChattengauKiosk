@@ -68,6 +68,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
     implementation(libs.sumup.merchant.sdk)
+    implementation(libs.play.services.location)
     implementation(libs.reorderable)
 
     // Firebase

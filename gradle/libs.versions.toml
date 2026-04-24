@@ -1,5 +1,5 @@
 [versions]
-agp = "9.1.0"
+agp = "9.1.1"
 coreKtx = "1.10.1"
 junit = "4.13.2"
 junitVersion = "1.1.5"
@@ -12,7 +12,7 @@ room = "2.8.4"
 datastore = "1.1.1"
 navigationCompose = "2.8.5"
 lifecycleViewmodelCompose = "2.8.7"
-ksp = "2.2.10-2.0.2"
+ksp = "2.3.2"
 reorderable = "2.4.3"
 desugar = "2.1.5"
 googleServices = "4.4.2"
@@ -54,6 +54,7 @@ firebase-appcheck = { group = "com.google.firebase", name = "firebase-appcheck-k
 firebase-appcheck-playintegrity = { group = "com.google.firebase", name = "firebase-appcheck-playintegrity" }
 firebase-appcheck-debug = { group = "com.google.firebase", name = "firebase-appcheck-debug" }
 kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version = "1.9.0" }
+play-services-location = { group = "com.google.android.gms", name = "play-services-location", version = "21.3.0" }
 
 ktor-client-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
 ktor-client-cio = { group = "io.ktor", name = "ktor-client-cio", version.ref = "ktor" }
