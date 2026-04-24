@@ -166,9 +166,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (newRemaining == null) {
                 articleDao.update(article.copy(stockQuantity = null))
             } else {
-                val soldToday = remainingStock.value[article.name]?.let { remaining ->
-                    (article.stockQuantity ?: 0) - remaining
-                } ?: 0
+                val soldToday = saleDao.getSoldQuantityToday(
+                    article.collectionId, article.name, startOfToday()
+                )
                 articleDao.update(article.copy(stockQuantity = newRemaining + soldToday))
             }
         }
@@ -194,7 +194,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         _snackbarMessage.emit("Kartenstorno nicht möglich: Kein Transaktionscode vorhanden")
                         return@launch
                     }
-                    val token = settings.oauthToken.first()
+                    val mode = app.authModeResolver.authMode.first()
+                    val token = when (mode) {
+                        net.maerkl.kassierapp.data.repository.AuthMode.Backend -> try {
+                            app.sumupTokenRepository.getAccessToken()
+                        } catch (e: Exception) {
+                            _snackbarMessage.emit("SumUp-Token-Fehler: ${e.message}")
+                            return@launch
+                        }
+                        net.maerkl.kassierapp.data.repository.AuthMode.Manual -> settings.oauthToken.first()
+                        net.maerkl.kassierapp.data.repository.AuthMode.None -> {
+                            _snackbarMessage.emit("Keine SumUp-Authentifizierung konfiguriert")
+                            return@launch
+                        }
+                    }
                     if (token.isBlank()) {
                         _snackbarMessage.emit("Kein SumUp-Token vorhanden")
                         return@launch
