@@ -173,6 +173,7 @@ class MainActivity : ComponentActivity() {
                     snackbarHostState = snackbarHostState,
                     sumUpLoggedIn = sumUpLoggedIn,
                     onLogin = { startSumUpLogin() },
+                    onLogout = { logoutSumUp() },
                     onOpenCardReader = { openCardReader() },
                     onShareIntent = { intent ->
                         startActivity(Intent.createChooser(intent, "CSV teilen"))
@@ -212,18 +213,30 @@ class MainActivity : ComponentActivity() {
             sumUpLoggedIn = true
             return
         }
-
         val app = application as KassierApplication
+        if (app.deviceSessionRepository.pairingState.value !is net.maerkl.kassierapp.data.repository.PairingState.Paired) {
+            return
+        }
         lifecycleScope.launch {
-            val token = app.settingsDataStore.oauthToken.first()
-            val affiliateKey = app.settingsDataStore.affiliateKey.first()
-
-            if (token.isNotBlank() && affiliateKey.isNotBlank()) {
-                val login = SumUpLogin.builder(affiliateKey)
-                    .accessToken(token)
-                    .build()
-                SumUpAPI.openLoginActivity(this@MainActivity, login, REQUEST_CODE_LOGIN)
+            val mode = app.authModeResolver.authMode.first()
+            val login = when (mode) {
+                net.maerkl.kassierapp.data.repository.AuthMode.Backend -> try {
+                    val token = app.sumupTokenRepository.getAccessToken()
+                    SumUpLogin.builder(net.maerkl.kassierapp.Config.SUMUP_AFFILIATE_KEY)
+                        .accessToken(token).build()
+                } catch (e: Exception) {
+                    Toast.makeText(this@MainActivity, "SumUp-Token-Fehler: ${e.message}", Toast.LENGTH_LONG).show()
+                    return@launch
+                }
+                net.maerkl.kassierapp.data.repository.AuthMode.Manual -> {
+                    val token = app.settingsDataStore.oauthToken.first()
+                    val affiliateKey = app.settingsDataStore.affiliateKey.first()
+                    if (token.isBlank() || affiliateKey.isBlank()) return@launch
+                    SumUpLogin.builder(affiliateKey).accessToken(token).build()
+                }
+                net.maerkl.kassierapp.data.repository.AuthMode.None -> return@launch
             }
+            SumUpAPI.openLoginActivity(this@MainActivity, login, REQUEST_CODE_LOGIN)
         }
     }
 
@@ -261,20 +274,41 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "Bereits bei SumUp eingeloggt", Toast.LENGTH_SHORT).show()
             return
         }
-
         val app = application as KassierApplication
         lifecycleScope.launch {
-            val token = app.settingsDataStore.oauthToken.first()
-            val affiliateKey = app.settingsDataStore.affiliateKey.first()
-
-            val loginBuilder = SumUpLogin.builder(affiliateKey)
-            if (token.isNotBlank()) {
-                loginBuilder.accessToken(token)
+            val mode = app.authModeResolver.authMode.first()
+            val login = when (mode) {
+                net.maerkl.kassierapp.data.repository.AuthMode.Backend -> try {
+                    val token = app.sumupTokenRepository.getAccessToken()
+                    SumUpLogin.builder(net.maerkl.kassierapp.Config.SUMUP_AFFILIATE_KEY)
+                        .accessToken(token).build()
+                } catch (e: Exception) {
+                    Toast.makeText(this@MainActivity, "SumUp-Token-Fehler: ${e.message}", Toast.LENGTH_LONG).show()
+                    return@launch
+                }
+                net.maerkl.kassierapp.data.repository.AuthMode.Manual -> {
+                    val token = app.settingsDataStore.oauthToken.first()
+                    val affiliateKey = app.settingsDataStore.affiliateKey.first()
+                    val loginBuilder = SumUpLogin.builder(affiliateKey)
+                    if (token.isNotBlank()) loginBuilder.accessToken(token)
+                    loginBuilder.build()
+                }
+                net.maerkl.kassierapp.data.repository.AuthMode.None -> {
+                    Toast.makeText(this@MainActivity, "Bitte Auth in Einstellungen einrichten", Toast.LENGTH_LONG).show()
+                    return@launch
+                }
             }
-            val login = loginBuilder.build()
-
             SumUpAPI.openLoginActivity(this@MainActivity, login, REQUEST_CODE_LOGIN)
         }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun logoutSumUp() {
+        if (SumUpAPI.isLoggedIn()) {
+            SumUpAPI.logout()
+        }
+        sumUpLoggedIn = SumUpAPI.isLoggedIn()
+        Toast.makeText(this, "SumUp ausgeloggt", Toast.LENGTH_SHORT).show()
     }
 
     private fun openCardReader() {

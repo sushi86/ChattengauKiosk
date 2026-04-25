@@ -3,6 +3,7 @@ package net.maerkl.kassierapp.ui.navigation
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -16,9 +17,12 @@ import androidx.navigation.compose.rememberNavController
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.ui.platform.LocalContext
+import net.maerkl.kassierapp.KassierApplication
+import net.maerkl.kassierapp.data.repository.PairingState
 import net.maerkl.kassierapp.ui.components.PinDialog
 import net.maerkl.kassierapp.ui.main.MainScreen
 import net.maerkl.kassierapp.ui.main.MainViewModel
+import net.maerkl.kassierapp.ui.pairing.PairingScreen
 import net.maerkl.kassierapp.ui.settings.ArticleManagementScreen
 import net.maerkl.kassierapp.ui.settings.SettingsScreen
 import net.maerkl.kassierapp.ui.settings.SettingsViewModel
@@ -30,6 +34,7 @@ fun AppNavigation(
     snackbarHostState: SnackbarHostState,
     sumUpLoggedIn: Boolean,
     onLogin: () -> Unit,
+    onLogout: () -> Unit,
     onOpenCardReader: () -> Unit,
     onShareIntent: (android.content.Intent) -> Unit,
     onPauseKiosk: () -> Unit,
@@ -53,7 +58,28 @@ fun AppNavigation(
         onDispose { navController.removeOnDestinationChangedListener(listener) }
     }
 
-    NavHost(navController = navController, startDestination = "main") {
+    val app = context.applicationContext as KassierApplication
+    val pairingState by app.deviceSessionRepository.pairingState.collectAsState()
+    val startDestination = if (pairingState is PairingState.Paired) "main" else "pairing"
+
+    LaunchedEffect(pairingState) {
+        if (pairingState is PairingState.Unpaired && navController.currentDestination?.route != "pairing") {
+            navController.navigate("pairing") {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+    }
+
+    NavHost(navController = navController, startDestination = startDestination) {
+        composable("pairing") {
+            PairingScreen(
+                onPaired = {
+                    navController.navigate("main") {
+                        popUpTo("pairing") { inclusive = true }
+                    }
+                }
+            )
+        }
         composable("main") {
             MainScreen(
                 viewModel = mainViewModel,
@@ -67,7 +93,9 @@ fun AppNavigation(
                 viewModel = settingsViewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onLogin = onLogin,
+                onLogout = onLogout,
                 onOpenCardReader = onOpenCardReader,
+                onStartPairing = { navController.navigate("pairing") },
                 onNavigateToStatistics = { navController.navigate("statistics") },
                 onNavigateToArticles = { navController.navigate("articles") },
                 onOpenWifiSettings = {
