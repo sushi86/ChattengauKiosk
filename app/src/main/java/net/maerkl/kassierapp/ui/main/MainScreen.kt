@@ -506,7 +506,7 @@ private fun TransactionHistoryDialog(
                     items(transactions, key = { it.transaction.id }) { txWithSales ->
                         val time = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
                             .format(java.util.Date(txWithSales.transaction.timestamp))
-                        val methodIcon = if (txWithSales.transaction.paymentMethod == "KARTE") "\uD83D\uDCB3" else "\uD83D\uDCB5"
+                        val methodIcon = if (txWithSales.transaction.paymentMethod == "sumup") "\uD83D\uDCB3" else "\uD83D\uDCB5"
 
                         val isRefunded = txWithSales.transaction.refunded
                         val textAlpha = if (isRefunded) 0.4f else 1f
@@ -592,7 +592,7 @@ private fun TransactionHistoryDialog(
     )
 
     refundTarget?.let { transaction ->
-        val isCard = transaction.paymentMethod == "KARTE"
+        val isCard = transaction.paymentMethod == "sumup"
         AlertDialog(
             onDismissRequest = { refundTarget = null },
             title = { Text("Transaktion stornieren?") },

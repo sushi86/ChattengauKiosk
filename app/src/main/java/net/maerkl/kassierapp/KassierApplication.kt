@@ -9,6 +9,7 @@ import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.functions.FirebaseFunctions
 import com.sumup.reader.sdk.api.SumUpState
 import io.ktor.client.HttpClient
@@ -22,6 +23,7 @@ import net.maerkl.kassierapp.data.preferences.SettingsDataStore
 import net.maerkl.kassierapp.data.remote.AppCheckTokenProvider
 import net.maerkl.kassierapp.data.remote.BackendApi
 import net.maerkl.kassierapp.data.remote.FirebasePairingService
+import net.maerkl.kassierapp.data.remote.TransaktionRepository
 import net.maerkl.kassierapp.data.repository.AuthModeResolver
 import net.maerkl.kassierapp.data.repository.DeviceSessionRepository
 import net.maerkl.kassierapp.data.repository.FirebaseAuthSignOut
@@ -41,6 +43,8 @@ class KassierApplication : Application() {
     lateinit var sumupTokenRepository: SumupTokenRepository
         private set
     lateinit var authModeResolver: AuthModeResolver
+        private set
+    lateinit var transaktionRepository: TransaktionRepository
         private set
 
     override fun onCreate() {
@@ -75,6 +79,11 @@ class KassierApplication : Application() {
             idTokenSource = FirebaseIdTokenSource(auth),
             appCheck = appCheckProvider,
             sessionRepo = deviceSessionRepository
+        )
+        transaktionRepository = TransaktionRepository(
+            firestore = FirebaseFirestore.getInstance(),
+            auth = auth,
+            sessionRepo = deviceSessionRepository,
         )
         authModeResolver = AuthModeResolver(
             pairingStateFlow = deviceSessionRepository.pairingState,

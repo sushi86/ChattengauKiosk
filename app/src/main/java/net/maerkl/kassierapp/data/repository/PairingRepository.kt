@@ -16,6 +16,9 @@ class PairingRepository(
         val creds = activation.getOrElse { return Result.failure(it) }
         return try {
             auth.signInWithCustomToken(creds.customToken).await()
+            // Force token refresh so custom claims set server-side (geraetId, vereinId)
+            // are baked into the ID token before the first Firestore write.
+            auth.currentUser?.getIdToken(true)?.await()
             sessionRepo.markPaired(creds.vereinId, creds.geraetId)
             Result.success(Unit)
         } catch (e: Exception) {

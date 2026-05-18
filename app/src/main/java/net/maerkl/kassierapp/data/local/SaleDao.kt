@@ -24,10 +24,10 @@ interface SaleDao {
 
     @Query("""
         SELECT s.articleName, s.articleEmoji,
-               SUM(CASE WHEN (t.refunded = 0 OR t.id IS NULL) AND s.paymentMethod = 'BAR' THEN s.quantity ELSE 0 END) AS cashQuantity,
-               SUM(CASE WHEN (t.refunded = 0 OR t.id IS NULL) AND s.paymentMethod = 'BAR' THEN s.articlePrice * s.quantity ELSE 0.0 END) AS cashRevenue,
-               SUM(CASE WHEN (t.refunded = 0 OR t.id IS NULL) AND s.paymentMethod = 'KARTE' THEN s.quantity ELSE 0 END) AS cardQuantity,
-               SUM(CASE WHEN (t.refunded = 0 OR t.id IS NULL) AND s.paymentMethod = 'KARTE' THEN s.articlePrice * s.quantity ELSE 0.0 END) AS cardRevenue,
+               SUM(CASE WHEN (t.refunded = 0 OR t.id IS NULL) AND s.paymentMethod = 'bar' THEN s.quantity ELSE 0 END) AS cashQuantity,
+               SUM(CASE WHEN (t.refunded = 0 OR t.id IS NULL) AND s.paymentMethod = 'bar' THEN s.articlePrice * s.quantity ELSE 0.0 END) AS cashRevenue,
+               SUM(CASE WHEN (t.refunded = 0 OR t.id IS NULL) AND s.paymentMethod = 'sumup' THEN s.quantity ELSE 0 END) AS cardQuantity,
+               SUM(CASE WHEN (t.refunded = 0 OR t.id IS NULL) AND s.paymentMethod = 'sumup' THEN s.articlePrice * s.quantity ELSE 0.0 END) AS cardRevenue,
                SUM(CASE WHEN t.refunded = 1 THEN s.quantity ELSE 0 END) AS refundedQuantity,
                SUM(CASE WHEN t.refunded = 1 THEN s.articlePrice * s.quantity ELSE 0.0 END) AS refundedRevenue
         FROM sales s

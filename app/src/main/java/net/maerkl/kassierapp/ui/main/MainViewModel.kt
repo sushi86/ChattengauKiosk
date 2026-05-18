@@ -27,6 +27,8 @@ import net.maerkl.kassierapp.data.local.Article
 import net.maerkl.kassierapp.data.local.Sale
 import net.maerkl.kassierapp.data.local.Transaction
 import net.maerkl.kassierapp.data.local.TransactionWithSales
+import net.maerkl.kassierapp.data.remote.RecordTransaktionResult
+import net.maerkl.kassierapp.data.remote.TransaktionItem
 
 data class CartItem(val article: Article, val quantity: Int)
 
@@ -146,7 +148,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun cashPayment() {
         if (_cart.value.isEmpty()) return
-        saveSales("BAR", null)
+        saveSales("bar", null)
         clearCart()
         viewModelScope.launch {
             _snackbarMessage.emit("Barzahlung erfasst")
@@ -154,7 +156,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onPaymentSuccess(txCode: String? = null) {
-        saveSales("KARTE", txCode)
+        saveSales("sumup", txCode)
         clearCart()
         viewModelScope.launch {
             _snackbarMessage.emit("Zahlung erfolgreich")
@@ -189,7 +191,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             try {
-                if (transaction.paymentMethod == "KARTE") {
+                if (transaction.paymentMethod == "sumup") {
                     if (transaction.txCode == null) {
                         _snackbarMessage.emit("Kartenstorno nicht möglich: Kein Transaktionscode vorhanden")
                         return@launch
@@ -290,6 +292,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
             saleDao.insertAll(sales)
+
+            val transaktionItems = cartSnapshot.map { item ->
+                TransaktionItem(
+                    artikelId = item.article.id.toString(),
+                    name = item.article.name,
+                    anzahl = item.quantity,
+                    einzelpreis = item.article.price,
+                    taxRate = 0,
+                )
+            }
+            val result = app.transaktionRepository.recordTransaktion(
+                items = transaktionItems,
+                zahlungsart = paymentMethod,
+                sumupTransactionId = txCode,
+            )
+            when (result) {
+                is RecordTransaktionResult.PermissionDeniedUnpaired ->
+                    _snackbarMessage.emit("Gerät entkoppelt – bitte neu pairen")
+                is RecordTransaktionResult.Failure ->
+                    _snackbarMessage.emit("Sync-Fehler: ${result.cause.message ?: "unbekannt"}")
+                RecordTransaktionResult.Success -> { /* no-op */ }
+            }
         }
     }
 }

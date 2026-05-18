@@ -10,7 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-@Database(entities = [Article::class, Sale::class, ArticleCollection::class, Transaction::class], version = 6)
+@Database(entities = [Article::class, Sale::class, ArticleCollection::class, Transaction::class], version = 7)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun articleDao(): ArticleDao
     abstract fun saleDao(): SaleDao
@@ -76,6 +76,15 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("UPDATE sales SET paymentMethod = 'bar' WHERE paymentMethod = 'BAR'")
+                db.execSQL("UPDATE sales SET paymentMethod = 'sumup' WHERE paymentMethod = 'KARTE'")
+                db.execSQL("UPDATE transactions SET paymentMethod = 'bar' WHERE paymentMethod = 'BAR'")
+                db.execSQL("UPDATE transactions SET paymentMethod = 'sumup' WHERE paymentMethod = 'KARTE'")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -86,7 +95,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "kassierapp_db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .addCallback(PrepopulateCallback())
                     .build()
                 INSTANCE = instance
