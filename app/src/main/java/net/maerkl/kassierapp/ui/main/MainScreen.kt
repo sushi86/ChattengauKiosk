@@ -148,6 +148,10 @@ fun MainScreen(
         }
     }
 
+    LaunchedEffect(uiState is KassenUiState.Ready) {
+        if (uiState !is KassenUiState.Ready) showSortimentSwitch = false
+    }
+
     val readyState = uiState as? KassenUiState.Ready
     val collectionName = readyState?.sortiment?.name ?: ""
 

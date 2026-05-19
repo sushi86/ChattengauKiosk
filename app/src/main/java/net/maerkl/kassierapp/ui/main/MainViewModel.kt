@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -19,6 +20,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -29,6 +32,7 @@ import net.maerkl.kassierapp.data.local.TransactionWithSales
 import net.maerkl.kassierapp.data.remote.Artikel
 import net.maerkl.kassierapp.data.remote.CatalogState
 import net.maerkl.kassierapp.data.remote.RecordTransaktionResult
+import net.maerkl.kassierapp.data.remote.Sortiment
 import net.maerkl.kassierapp.data.remote.TransaktionItem
 import net.maerkl.kassierapp.data.repository.PairingState
 
@@ -44,15 +48,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val selectedSortimentStore = app.selectedSortimentStore
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val uiState: StateFlow<KassenUiState> = sessionRepo.pairingState
+    private val catalogSignal: SharedFlow<CatalogPair> = sessionRepo.pairingState
         .flatMapLatest { pair ->
             val paired = pair as? PairingState.Paired
-                ?: return@flatMapLatest flowOf(KassenUiState.NotPaired)
+                ?: return@flatMapLatest flowOf(CatalogPair.NotPaired)
             combine(
                 artikelRepo.observeAktive(paired.vereinId),
                 sortimentRepo.observe(paired.vereinId),
-                selectedSortimentStore.selectedSortimentId,
-            ) { a, s, selectedId -> deriveState(a, s, selectedId) }
+            ) { a, s -> CatalogPair.Loaded(a, s) }
+        }
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+
+    val uiState: StateFlow<KassenUiState> = catalogSignal
+        .combine(selectedSortimentStore.selectedSortimentId) { signal, selectedId ->
+            when (signal) {
+                CatalogPair.NotPaired -> KassenUiState.NotPaired
+                is CatalogPair.Loaded -> deriveState(signal.artikel, signal.sortiment, selectedId)
+            }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), KassenUiState.Loading)
 
@@ -74,19 +86,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         // PERMISSION_DENIED in either catalog flow → unpair
-        @OptIn(ExperimentalCoroutinesApi::class)
         viewModelScope.launch {
-            sessionRepo.pairingState
-                .flatMapLatest { pair ->
-                    val paired = pair as? PairingState.Paired
-                        ?: return@flatMapLatest flowOf(false)
-                    combine(
-                        artikelRepo.observeAktive(paired.vereinId),
-                        sortimentRepo.observe(paired.vereinId),
-                    ) { a, s ->
-                        a is CatalogState.PermissionDenied || s is CatalogState.PermissionDenied
-                    }
-                }
+            catalogSignal
+                .map { it is CatalogPair.Loaded && (it.artikel is CatalogState.PermissionDenied || it.sortiment is CatalogState.PermissionDenied) }
                 .distinctUntilChanged()
                 .filter { it }
                 .collect { handleRevocation() }
@@ -280,5 +282,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         cal.set(java.util.Calendar.SECOND, 0)
         cal.set(java.util.Calendar.MILLISECOND, 0)
         return cal.timeInMillis
+    }
+
+    private sealed class CatalogPair {
+        data object NotPaired : CatalogPair()
+        data class Loaded(
+            val artikel: CatalogState<Artikel>,
+            val sortiment: CatalogState<Sortiment>,
+        ) : CatalogPair()
     }
 }
