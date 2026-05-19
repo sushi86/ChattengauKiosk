@@ -1,8 +1,11 @@
 package net.maerkl.kassierapp.ui.main
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import java.net.HttpURLConnection
+import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -12,78 +15,46 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.withContext
-import java.net.HttpURLConnection
-import java.net.URL
-import java.util.Calendar
-import java.util.TimeZone
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import net.maerkl.kassierapp.KassierApplication
-import net.maerkl.kassierapp.data.local.Article
 import net.maerkl.kassierapp.data.local.Sale
 import net.maerkl.kassierapp.data.local.Transaction
 import net.maerkl.kassierapp.data.local.TransactionWithSales
+import net.maerkl.kassierapp.data.remote.Artikel
+import net.maerkl.kassierapp.data.remote.CatalogState
 import net.maerkl.kassierapp.data.remote.RecordTransaktionResult
 import net.maerkl.kassierapp.data.remote.TransaktionItem
+import net.maerkl.kassierapp.data.repository.PairingState
 
-data class CartItem(val article: Article, val quantity: Int)
+data class CartItem(val artikel: Artikel, val quantity: Int)
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as KassierApplication
-    private val articleDao = app.database.articleDao()
     private val saleDao = app.database.saleDao()
     private val transactionDao = app.database.transactionDao()
-    private val collectionDao = app.database.articleCollectionDao()
-    private val settings = app.settingsDataStore
-    private var nextManualPriceId = -1L
-
-    private val activeCollectionId = settings.activeCollectionId
-        .stateIn(viewModelScope, SharingStarted.Eagerly, 1L)
+    private val sessionRepo = app.deviceSessionRepository
+    private val artikelRepo = app.artikelRepository
+    private val sortimentRepo = app.sortimentRepository
+    private val selectedSortimentStore = app.selectedSortimentStore
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val activeCollectionName: StateFlow<String> = activeCollectionId.flatMapLatest { collectionId ->
-        collectionDao.getAll().map { collections ->
-            collections.find { it.id == collectionId }?.name ?: ""
+    val uiState: StateFlow<KassenUiState> = sessionRepo.pairingState
+        .flatMapLatest { pair ->
+            val paired = pair as? PairingState.Paired
+                ?: return@flatMapLatest flowOf(KassenUiState.NotPaired)
+            combine(
+                artikelRepo.observeAktive(paired.vereinId),
+                sortimentRepo.observe(paired.vereinId),
+                selectedSortimentStore.selectedSortimentId,
+            ) { a, s, selectedId -> deriveState(a, s, selectedId) }
         }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, "")
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val articles = activeCollectionId.flatMapLatest { collectionId ->
-        articleDao.getActiveArticles(collectionId)
-    }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val remainingStock: StateFlow<Map<String, Int>> = activeCollectionId.flatMapLatest { collectionId ->
-        val soldFlow = saleDao.getSoldQuantitiesToday(collectionId, startOfToday())
-        val articlesFlow = articleDao.getActiveArticles(collectionId)
-        combine(articlesFlow, soldFlow) { articleList, soldList ->
-            val soldMap = soldList.associate { it.articleName to it.totalSold }
-            articleList
-                .filter { it.stockQuantity != null }
-                .associate { article ->
-                    val sold = soldMap[article.name] ?: 0
-                    article.name to (article.stockQuantity!! - sold)
-                }
-        }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val todayTransactions: StateFlow<List<TransactionWithSales>> = activeCollectionId.flatMapLatest { collectionId ->
-        transactionDao.getTodayTransactionsWithSales(collectionId, startOfToday())
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-
-    private fun startOfToday(): Long {
-        val cal = Calendar.getInstance(TimeZone.getDefault())
-        cal.set(Calendar.HOUR_OF_DAY, 0)
-        cal.set(Calendar.MINUTE, 0)
-        cal.set(Calendar.SECOND, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-        return cal.timeInMillis
-    }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), KassenUiState.Loading)
 
     private val _cart = MutableStateFlow<List<CartItem>>(emptyList())
     val cart: StateFlow<List<CartItem>> = _cart.asStateFlow()
@@ -94,34 +65,60 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _snackbarMessage = MutableSharedFlow<String>()
     val snackbarMessage = _snackbarMessage.asSharedFlow()
 
-    val cartTotal: Double
-        get() = _cart.value.sumOf { it.article.price * it.quantity }
+    val cartTotalCent: Long
+        get() = _cart.value.sumOf { it.artikel.preisCent * it.quantity }
 
-    fun addToCart(article: Article) {
+    val todayTransactions: StateFlow<List<TransactionWithSales>> =
+        transactionDao.getTodayTransactionsWithSales(startOfToday())
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    init {
+        // PERMISSION_DENIED in either catalog flow → unpair
+        @OptIn(ExperimentalCoroutinesApi::class)
+        viewModelScope.launch {
+            sessionRepo.pairingState
+                .flatMapLatest { pair ->
+                    val paired = pair as? PairingState.Paired
+                        ?: return@flatMapLatest flowOf(false)
+                    combine(
+                        artikelRepo.observeAktive(paired.vereinId),
+                        sortimentRepo.observe(paired.vereinId),
+                    ) { a, s ->
+                        a is CatalogState.PermissionDenied || s is CatalogState.PermissionDenied
+                    }
+                }
+                .distinctUntilChanged()
+                .filter { it }
+                .collect { handleRevocation() }
+        }
+    }
+
+    private suspend fun handleRevocation() {
+        Log.w("MainViewModel", "PERMISSION_DENIED on catalog listener → unpairing")
+        selectedSortimentStore.set(null)
+        _cart.value = emptyList()
+        sessionRepo.unpair()
+        _snackbarMessage.emit("Gerät entkoppelt – bitte neu pairen")
+    }
+
+    fun selectSortiment(id: String) {
+        selectedSortimentStore.set(id)
+    }
+
+    fun addToCart(artikel: Artikel) {
         val current = _cart.value.toMutableList()
-        val index = current.indexOfFirst { it.article.id == article.id }
+        val index = current.indexOfFirst { it.artikel.id == artikel.id }
         if (index >= 0) {
             current[index] = current[index].copy(quantity = current[index].quantity + 1)
         } else {
-            current.add(CartItem(article, 1))
+            current.add(CartItem(artikel, 1))
         }
         _cart.value = current
     }
 
-    fun addManualPriceToCart(price: Double, name: String, originalArticle: Article) {
-        val cartArticle = originalArticle.copy(
-            id = nextManualPriceId--,
-            name = name,
-            price = price
-        )
+    fun removeFromCart(artikel: Artikel) {
         val current = _cart.value.toMutableList()
-        current.add(CartItem(cartArticle, 1))
-        _cart.value = current
-    }
-
-    fun removeFromCart(article: Article) {
-        val current = _cart.value.toMutableList()
-        val index = current.indexOfFirst { it.article.id == article.id }
+        val index = current.indexOfFirst { it.artikel.id == artikel.id }
         if (index >= 0) {
             val item = current[index]
             if (item.quantity > 1) {
@@ -133,15 +130,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun clearCart() {
-        _cart.value = emptyList()
-    }
+    fun clearCart() { _cart.value = emptyList() }
 
     fun checkout() {
-        val total = cartTotal
-        if (total > 0) {
+        val totalCent = cartTotalCent
+        if (totalCent > 0) {
             viewModelScope.launch {
-                _checkoutAmount.emit(total)
+                _checkoutAmount.emit(totalCent / 100.0)
             }
         }
     }
@@ -150,36 +145,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (_cart.value.isEmpty()) return
         saveSales("bar", null)
         clearCart()
-        viewModelScope.launch {
-            _snackbarMessage.emit("Barzahlung erfasst")
-        }
+        viewModelScope.launch { _snackbarMessage.emit("Barzahlung erfasst") }
     }
 
     fun onPaymentSuccess(txCode: String? = null) {
         saveSales("sumup", txCode)
         clearCart()
-        viewModelScope.launch {
-            _snackbarMessage.emit("Zahlung erfolgreich")
-        }
-    }
-
-    fun updateStockQuantity(article: Article, newRemaining: Int?) {
-        viewModelScope.launch {
-            if (newRemaining == null) {
-                articleDao.update(article.copy(stockQuantity = null))
-            } else {
-                val soldToday = saleDao.getSoldQuantityToday(
-                    article.collectionId, article.name, startOfToday()
-                )
-                articleDao.update(article.copy(stockQuantity = newRemaining + soldToday))
-            }
-        }
+        viewModelScope.launch { _snackbarMessage.emit("Zahlung erfolgreich") }
     }
 
     fun onPaymentFailed() {
-        viewModelScope.launch {
-            _snackbarMessage.emit("Zahlung fehlgeschlagen")
-        }
+        viewModelScope.launch { _snackbarMessage.emit("Zahlung fehlgeschlagen") }
     }
 
     private val _refundInProgress = MutableStateFlow(false)
@@ -188,7 +164,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun refundTransaction(transaction: Transaction) {
         if (_refundInProgress.value) return
         _refundInProgress.value = true
-
         viewModelScope.launch {
             try {
                 if (transaction.paymentMethod == "sumup") {
@@ -196,19 +171,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         _snackbarMessage.emit("Kartenstorno nicht möglich: Kein Transaktionscode vorhanden")
                         return@launch
                     }
-                    val mode = app.authModeResolver.authMode.first()
-                    val token = when (mode) {
-                        net.maerkl.kassierapp.data.repository.AuthMode.Backend -> try {
-                            app.sumupTokenRepository.getAccessToken()
-                        } catch (e: Exception) {
-                            _snackbarMessage.emit("SumUp-Token-Fehler: ${e.message}")
-                            return@launch
-                        }
-                        net.maerkl.kassierapp.data.repository.AuthMode.Manual -> settings.oauthToken.first()
-                        net.maerkl.kassierapp.data.repository.AuthMode.None -> {
-                            _snackbarMessage.emit("Keine SumUp-Authentifizierung konfiguriert")
-                            return@launch
-                        }
+                    val token = try {
+                        app.sumupTokenRepository.getAccessToken()
+                    } catch (e: Exception) {
+                        _snackbarMessage.emit("SumUp-Token-Fehler: ${e.message}")
+                        return@launch
                     }
                     if (token.isBlank()) {
                         _snackbarMessage.emit("Kein SumUp-Token vorhanden")
@@ -242,64 +209,53 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         conn.readTimeout = 10000
         conn.doOutput = false
         return try {
-            if (conn.responseCode in 200..299) {
-                null
-            } else {
-                val errorBody = try {
-                    conn.errorStream?.bufferedReader()?.readText()
-                } catch (_: Exception) { null }
-                val message = if (errorBody != null) {
-                    try {
-                        org.json.JSONObject(errorBody).optString("message", errorBody)
-                    } catch (_: Exception) { errorBody }
-                } else {
-                    "HTTP ${conn.responseCode}"
-                }
-                message
+            if (conn.responseCode in 200..299) null
+            else {
+                val errorBody = try { conn.errorStream?.bufferedReader()?.readText() } catch (_: Exception) { null }
+                if (errorBody != null) {
+                    try { org.json.JSONObject(errorBody).optString("message", errorBody) }
+                    catch (_: Exception) { errorBody }
+                } else "HTTP ${conn.responseCode}"
             }
-        } finally {
-            conn.disconnect()
-        }
+        } finally { conn.disconnect() }
     }
 
     private fun saveSales(paymentMethod: String, txCode: String?) {
         val now = System.currentTimeMillis()
-        val collectionId = activeCollectionId.value
-        val total = cartTotal
         val cartSnapshot = _cart.value
+        val totalEuro = cartTotalCent / 100.0
 
         viewModelScope.launch {
             val transactionId = transactionDao.insert(
                 Transaction(
                     timestamp = now,
                     paymentMethod = paymentMethod,
-                    totalAmount = total,
+                    totalAmount = totalEuro,
                     txCode = txCode,
-                    collectionId = collectionId
+                    collectionId = 0L,
                 )
             )
-
             val sales = cartSnapshot.map { item ->
                 Sale(
-                    articleName = item.article.name,
-                    articleEmoji = item.article.emoji,
-                    articlePrice = item.article.price,
+                    articleName = item.artikel.name,
+                    articleEmoji = item.artikel.emoji ?: "",
+                    articlePrice = item.artikel.preisCent / 100.0,
                     quantity = item.quantity,
                     paymentMethod = paymentMethod,
                     timestamp = now,
-                    collectionId = collectionId,
-                    transactionId = transactionId
+                    collectionId = 0L,
+                    transactionId = transactionId,
                 )
             }
             saleDao.insertAll(sales)
 
             val transaktionItems = cartSnapshot.map { item ->
                 TransaktionItem(
-                    artikelId = item.article.id.toString(),
-                    name = item.article.name,
+                    artikelId = item.artikel.id,
+                    name = item.artikel.name,
                     anzahl = item.quantity,
-                    einzelpreis = item.article.price,
-                    taxRate = 0,
+                    einzelpreis = item.artikel.preisCent / 100.0,
+                    taxRate = item.artikel.taxRate,
                 )
             }
             val result = app.transaktionRepository.recordTransaktion(
@@ -315,5 +271,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 RecordTransaktionResult.Success -> { /* no-op */ }
             }
         }
+    }
+
+    private fun startOfToday(): Long {
+        val cal = java.util.Calendar.getInstance(java.util.TimeZone.getDefault())
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        cal.set(java.util.Calendar.MINUTE, 0)
+        cal.set(java.util.Calendar.SECOND, 0)
+        cal.set(java.util.Calendar.MILLISECOND, 0)
+        return cal.timeInMillis
     }
 }

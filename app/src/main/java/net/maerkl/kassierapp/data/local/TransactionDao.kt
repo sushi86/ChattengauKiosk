@@ -21,10 +21,10 @@ interface TransactionDao {
     @RoomTransaction
     @Query("""
         SELECT * FROM transactions
-        WHERE collectionId = :collectionId AND timestamp >= :startOfDay
+        WHERE timestamp >= :startOfDay
         ORDER BY timestamp DESC
     """)
-    fun getTodayTransactionsWithSales(collectionId: Long, startOfDay: Long): Flow<List<TransactionWithSales>>
+    fun getTodayTransactionsWithSales(startOfDay: Long): Flow<List<TransactionWithSales>>
 
     @Query("UPDATE transactions SET refunded = 1 WHERE id = :id")
     suspend fun markRefunded(id: Long)
