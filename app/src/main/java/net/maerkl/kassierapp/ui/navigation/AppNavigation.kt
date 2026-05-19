@@ -23,7 +23,6 @@ import net.maerkl.kassierapp.ui.components.PinDialog
 import net.maerkl.kassierapp.ui.main.MainScreen
 import net.maerkl.kassierapp.ui.main.MainViewModel
 import net.maerkl.kassierapp.ui.pairing.PairingScreen
-import net.maerkl.kassierapp.ui.settings.ArticleManagementScreen
 import net.maerkl.kassierapp.ui.settings.SettingsScreen
 import net.maerkl.kassierapp.ui.settings.SettingsViewModel
 import net.maerkl.kassierapp.ui.statistics.StatisticsScreen
@@ -33,8 +32,6 @@ import net.maerkl.kassierapp.ui.statistics.StatisticsViewModel
 fun AppNavigation(
     snackbarHostState: SnackbarHostState,
     sumUpLoggedIn: Boolean,
-    onLogin: () -> Unit,
-    onLogout: () -> Unit,
     onOpenCardReader: () -> Unit,
     onShareIntent: (android.content.Intent) -> Unit,
     onPauseKiosk: () -> Unit,
@@ -92,12 +89,9 @@ fun AppNavigation(
             SettingsScreen(
                 viewModel = settingsViewModel,
                 onNavigateBack = { navController.popBackStack() },
-                onLogin = onLogin,
-                onLogout = onLogout,
                 onOpenCardReader = onOpenCardReader,
                 onStartPairing = { navController.navigate("pairing") },
                 onNavigateToStatistics = { navController.navigate("statistics") },
-                onNavigateToArticles = { navController.navigate("articles") },
                 onOpenWifiSettings = {
                     context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
                 },
@@ -105,12 +99,6 @@ fun AppNavigation(
                     onPauseKiosk()
                     (context as? android.app.Activity)?.moveTaskToBack(true)
                 }
-            )
-        }
-        composable("articles") {
-            ArticleManagementScreen(
-                viewModel = settingsViewModel,
-                onNavigateBack = { navController.popBackStack() }
             )
         }
         composable("statistics") {

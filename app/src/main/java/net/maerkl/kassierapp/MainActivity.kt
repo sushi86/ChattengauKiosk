@@ -171,8 +171,6 @@ class MainActivity : ComponentActivity() {
                 AppNavigation(
                     snackbarHostState = snackbarHostState,
                     sumUpLoggedIn = sumUpLoggedIn,
-                    onLogin = { startSumUpLogin() },
-                    onLogout = { logoutSumUp() },
                     onOpenCardReader = { openCardReader() },
                     onShareIntent = { intent ->
                         startActivity(Intent.createChooser(intent, "CSV teilen"))
@@ -279,15 +277,6 @@ class MainActivity : ComponentActivity() {
             }
             SumUpAPI.openLoginActivity(this@MainActivity, login, REQUEST_CODE_LOGIN)
         }
-    }
-
-    @Suppress("DEPRECATION")
-    private fun logoutSumUp() {
-        if (SumUpAPI.isLoggedIn()) {
-            SumUpAPI.logout()
-        }
-        sumUpLoggedIn = SumUpAPI.isLoggedIn()
-        Toast.makeText(this, "SumUp ausgeloggt", Toast.LENGTH_SHORT).show()
     }
 
     private fun openCardReader() {

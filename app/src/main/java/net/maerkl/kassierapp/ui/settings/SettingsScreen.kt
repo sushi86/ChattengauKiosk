@@ -45,12 +45,9 @@ import net.maerkl.kassierapp.ui.theme.Green900
 fun SettingsScreen(
     viewModel: SettingsViewModel,
     onNavigateBack: () -> Unit,
-    onLogin: () -> Unit,
-    onLogout: () -> Unit,
     onOpenCardReader: () -> Unit,
     onStartPairing: () -> Unit,
     onNavigateToStatistics: () -> Unit,
-    onNavigateToArticles: () -> Unit,
     onOpenWifiSettings: () -> Unit,
     onExitKiosk: () -> Unit
 ) {
@@ -242,39 +239,6 @@ private fun PinChangeDialog(
                     else -> onSave(newPin)
                 }
             }) { Text("Speichern") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Abbrechen") }
-        }
-    )
-}
-
-@Composable
-internal fun CollectionNameDialog(
-    title: String,
-    initialName: String = "",
-    onDismiss: () -> Unit,
-    onSave: (String) -> Unit
-) {
-    var name by remember { mutableStateOf(initialName) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Name") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { if (name.isNotBlank()) onSave(name.trim()) },
-                enabled = name.isNotBlank()
-            ) { Text("Speichern") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Abbrechen") }
