@@ -25,6 +25,7 @@ class PairingRepositoryTest {
         )
         val auth = mockk<FirebaseAuth>()
         every { auth.signInWithCustomToken("custom-token") } returns Tasks.forResult(mockk<AuthResult>())
+        every { auth.currentUser } returns null
         val sessionRepo = mockk<DeviceSessionRepository>(relaxUnitFun = true)
 
         val repo = PairingRepository(service, auth, sessionRepo)
