@@ -19,10 +19,14 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 import net.maerkl.kassierapp.data.local.AppDatabase
 import net.maerkl.kassierapp.data.local.EncryptedDeviceSessionStore
+import net.maerkl.kassierapp.data.local.EncryptedSelectedSortimentStore
+import net.maerkl.kassierapp.data.local.SelectedSortimentStore
 import net.maerkl.kassierapp.data.preferences.SettingsDataStore
 import net.maerkl.kassierapp.data.remote.AppCheckTokenProvider
+import net.maerkl.kassierapp.data.remote.ArtikelRepository
 import net.maerkl.kassierapp.data.remote.BackendApi
 import net.maerkl.kassierapp.data.remote.FirebasePairingService
+import net.maerkl.kassierapp.data.remote.SortimentRepository
 import net.maerkl.kassierapp.data.remote.TransaktionRepository
 import net.maerkl.kassierapp.data.repository.AuthModeResolver
 import net.maerkl.kassierapp.data.repository.DeviceSessionRepository
@@ -45,6 +49,12 @@ class KassierApplication : Application() {
     lateinit var authModeResolver: AuthModeResolver
         private set
     lateinit var transaktionRepository: TransaktionRepository
+        private set
+    lateinit var artikelRepository: ArtikelRepository
+        private set
+    lateinit var sortimentRepository: SortimentRepository
+        private set
+    lateinit var selectedSortimentStore: SelectedSortimentStore
         private set
 
     override fun onCreate() {
@@ -80,11 +90,15 @@ class KassierApplication : Application() {
             appCheck = appCheckProvider,
             sessionRepo = deviceSessionRepository
         )
+        val firestore = FirebaseFirestore.getInstance()
         transaktionRepository = TransaktionRepository(
-            firestore = FirebaseFirestore.getInstance(),
+            firestore = firestore,
             auth = auth,
             sessionRepo = deviceSessionRepository,
         )
+        artikelRepository = ArtikelRepository(firestore)
+        sortimentRepository = SortimentRepository(firestore)
+        selectedSortimentStore = EncryptedSelectedSortimentStore(this)
         authModeResolver = AuthModeResolver(
             pairingStateFlow = deviceSessionRepository.pairingState,
             manualAffiliateKeyFlow = settingsDataStore.affiliateKey,
