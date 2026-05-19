@@ -29,7 +29,7 @@ class StatisticsViewModel(application: Application) : AndroidViewModel(applicati
 
     fun exportCsv(dayTimestamp: Long, articles: List<ArticleDaySummary>): Intent {
         val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.GERMANY).format(Date(dayTimestamp))
-        val bom = "﻿"
+        val bom = "\uFEFF"
         val header = "Datum;Artikel;Anzahl Bar;Umsatz Bar;Anzahl Karte;Umsatz Karte;Anzahl Storno;Umsatz Storno;Anzahl Gesamt;Umsatz Gesamt"
 
         val rows = articles.map { a ->
