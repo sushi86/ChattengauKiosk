@@ -12,7 +12,6 @@ data class Sale(
     val quantity: Int,
     val paymentMethod: String,
     val timestamp: Long,
-    val collectionId: Long = 1,
     val transactionId: Long = 0
 )
 

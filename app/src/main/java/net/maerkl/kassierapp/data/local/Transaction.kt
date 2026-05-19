@@ -12,7 +12,6 @@ data class Transaction(
     val paymentMethod: String,
     val totalAmount: Double,
     val txCode: String? = null,
-    val collectionId: Long = 1,
     val refunded: Boolean = false
 )
 

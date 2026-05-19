@@ -28,7 +28,6 @@ import net.maerkl.kassierapp.data.remote.BackendApi
 import net.maerkl.kassierapp.data.remote.FirebasePairingService
 import net.maerkl.kassierapp.data.remote.SortimentRepository
 import net.maerkl.kassierapp.data.remote.TransaktionRepository
-import net.maerkl.kassierapp.data.repository.AuthModeResolver
 import net.maerkl.kassierapp.data.repository.DeviceSessionRepository
 import net.maerkl.kassierapp.data.repository.FirebaseAuthSignOut
 import net.maerkl.kassierapp.data.repository.FirebaseIdTokenSource
@@ -45,8 +44,6 @@ class KassierApplication : Application() {
     lateinit var pairingRepository: PairingRepository
         private set
     lateinit var sumupTokenRepository: SumupTokenRepository
-        private set
-    lateinit var authModeResolver: AuthModeResolver
         private set
     lateinit var transaktionRepository: TransaktionRepository
         private set
@@ -99,11 +96,6 @@ class KassierApplication : Application() {
         artikelRepository = ArtikelRepository(firestore)
         sortimentRepository = SortimentRepository(firestore)
         selectedSortimentStore = EncryptedSelectedSortimentStore(this)
-        authModeResolver = AuthModeResolver(
-            pairingStateFlow = deviceSessionRepository.pairingState,
-            manualAffiliateKeyFlow = settingsDataStore.affiliateKey,
-            manualOauthTokenFlow = settingsDataStore.oauthToken
-        )
 
         SumUpState.init(this)
         setupKioskMode()

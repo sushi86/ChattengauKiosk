@@ -16,11 +16,10 @@ interface SaleDao {
                SUM(CASE WHEN t.refunded = 0 OR t.id IS NULL THEN s.quantity ELSE 0 END) AS totalItems
         FROM sales s
         LEFT JOIN transactions t ON s.transactionId = t.id
-        WHERE s.collectionId = :collectionId
         GROUP BY s.timestamp / 86400000
         ORDER BY dayTimestamp DESC
     """)
-    fun getDailySummaries(collectionId: Long): Flow<List<DailySummary>>
+    fun getDailySummaries(): Flow<List<DailySummary>>
 
     @Query("""
         SELECT s.articleName, s.articleEmoji,
@@ -32,31 +31,11 @@ interface SaleDao {
                SUM(CASE WHEN t.refunded = 1 THEN s.articlePrice * s.quantity ELSE 0.0 END) AS refundedRevenue
         FROM sales s
         LEFT JOIN transactions t ON s.transactionId = t.id
-        WHERE s.collectionId = :collectionId AND s.timestamp >= :startOfDay AND s.timestamp < :endOfDay
+        WHERE s.timestamp >= :startOfDay AND s.timestamp < :endOfDay
         GROUP BY s.articleName, s.articleEmoji
         ORDER BY s.articleName ASC
     """)
-    fun getArticleSummariesForDay(collectionId: Long, startOfDay: Long, endOfDay: Long): Flow<List<ArticleDaySummary>>
-
-    @Query("DELETE FROM sales WHERE collectionId = :collectionId")
-    suspend fun deleteAllByCollection(collectionId: Long)
-
-    @Query("""
-        SELECT s.articleName, SUM(s.quantity) AS totalSold
-        FROM sales s
-        LEFT JOIN transactions t ON s.transactionId = t.id
-        WHERE s.collectionId = :collectionId AND s.timestamp >= :startOfDay AND (t.refunded = 0 OR t.id IS NULL)
-        GROUP BY s.articleName
-    """)
-    fun getSoldQuantitiesToday(collectionId: Long, startOfDay: Long): Flow<List<SoldQuantity>>
-
-    @Query("""
-        SELECT COALESCE(SUM(s.quantity), 0)
-        FROM sales s
-        LEFT JOIN transactions t ON s.transactionId = t.id
-        WHERE s.collectionId = :collectionId AND s.articleName = :articleName AND s.timestamp >= :startOfDay AND (t.refunded = 0 OR t.id IS NULL)
-    """)
-    suspend fun getSoldQuantityToday(collectionId: Long, articleName: String, startOfDay: Long): Int
+    fun getArticleSummariesForDay(startOfDay: Long, endOfDay: Long): Flow<List<ArticleDaySummary>>
 
     @Query("SELECT * FROM sales WHERE transactionId = :transactionId")
     suspend fun getSalesByTransactionId(transactionId: Long): List<Sale>

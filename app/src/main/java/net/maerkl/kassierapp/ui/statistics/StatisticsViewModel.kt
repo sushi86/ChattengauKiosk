@@ -4,12 +4,7 @@ import android.app.Application
 import android.content.Intent
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.stateIn
 import net.maerkl.kassierapp.KassierApplication
 import net.maerkl.kassierapp.data.local.ArticleDaySummary
 import net.maerkl.kassierapp.data.local.DailySummary
@@ -22,19 +17,10 @@ class StatisticsViewModel(application: Application) : AndroidViewModel(applicati
     private val app = application as KassierApplication
     private val saleDao = app.database.saleDao()
 
-    private val settings = app.settingsDataStore
+    val dailySummaries: Flow<List<DailySummary>> = saleDao.getDailySummaries()
 
-    private val activeCollectionId = settings.activeCollectionId
-        .stateIn(viewModelScope, SharingStarted.Eagerly, 1L)
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val dailySummaries: Flow<List<DailySummary>> = activeCollectionId.flatMapLatest { collectionId ->
-        saleDao.getDailySummaries(collectionId)
-    }
-
-    fun getArticleSummaries(dayTimestamp: Long): Flow<List<ArticleDaySummary>> {
-        return saleDao.getArticleSummariesForDay(activeCollectionId.value, dayTimestamp, dayTimestamp + 86_400_000)
-    }
+    fun getArticleSummaries(dayTimestamp: Long): Flow<List<ArticleDaySummary>> =
+        saleDao.getArticleSummariesForDay(dayTimestamp, dayTimestamp + 86_400_000)
 
     fun formatDate(timestamp: Long): String {
         val sdf = SimpleDateFormat("EE, dd.MM.yyyy", Locale.GERMANY)
@@ -43,7 +29,7 @@ class StatisticsViewModel(application: Application) : AndroidViewModel(applicati
 
     fun exportCsv(dayTimestamp: Long, articles: List<ArticleDaySummary>): Intent {
         val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.GERMANY).format(Date(dayTimestamp))
-        val bom = "\uFEFF"
+        val bom = "﻿"
         val header = "Datum;Artikel;Anzahl Bar;Umsatz Bar;Anzahl Karte;Umsatz Karte;Anzahl Storno;Umsatz Storno;Anzahl Gesamt;Umsatz Gesamt"
 
         val rows = articles.map { a ->

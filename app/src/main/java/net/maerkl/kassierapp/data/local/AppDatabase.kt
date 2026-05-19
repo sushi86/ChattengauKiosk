@@ -10,7 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-@Database(entities = [Article::class, Sale::class, ArticleCollection::class, Transaction::class], version = 7)
+@Database(entities = [Article::class, Sale::class, ArticleCollection::class, Transaction::class], version = 8)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun articleDao(): ArticleDao
     abstract fun saleDao(): SaleDao
@@ -96,6 +96,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "kassierapp_db"
                 )
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                    .fallbackToDestructiveMigration()
                     .addCallback(PrepopulateCallback())
                     .build()
                 INSTANCE = instance

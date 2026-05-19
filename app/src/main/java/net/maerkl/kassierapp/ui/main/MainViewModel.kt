@@ -234,7 +234,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     paymentMethod = paymentMethod,
                     totalAmount = totalEuro,
                     txCode = txCode,
-                    collectionId = 0L,
                 )
             )
             val sales = cartSnapshot.map { item ->
@@ -245,7 +244,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     quantity = item.quantity,
                     paymentMethod = paymentMethod,
                     timestamp = now,
-                    collectionId = 0L,
                     transactionId = transactionId,
                 )
             }
