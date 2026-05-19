@@ -4,6 +4,8 @@ import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import net.maerkl.kassierapp.data.local.DeviceSessionStore
 
 sealed class PairingState {
@@ -27,6 +29,7 @@ class DeviceSessionRepository(
 ) {
     private val _pairingState: MutableStateFlow<PairingState> = MutableStateFlow(loadInitial())
     val pairingState: StateFlow<PairingState> = _pairingState.asStateFlow()
+    private val unpairMutex = Mutex()
 
     private fun loadInitial(): PairingState {
         val v = store.getVereinId()
@@ -39,7 +42,8 @@ class DeviceSessionRepository(
         _pairingState.value = PairingState.Paired(vereinId, geraetId)
     }
 
-    suspend fun unpair() {
+    suspend fun unpair() = unpairMutex.withLock {
+        if (_pairingState.value is PairingState.Unpaired) return@withLock
         signOut.signOut()
         store.clear()
         _pairingState.value = PairingState.Unpaired

@@ -71,17 +71,6 @@ class TransaktionRepository(
         }
 
         return try {
-            // Diagnostic: log current ID token claims so we can see what the rules see.
-            try {
-                val tokenResult = auth.currentUser?.getIdToken(false)?.await()
-                Log.d(
-                    "TransaktionRepo",
-                    "About to write: vereinId=${paired.vereinId}, geraetId=${paired.geraetId}, uid=$uid, claims=${tokenResult?.claims}"
-                )
-            } catch (e: Exception) {
-                Log.w("TransaktionRepo", "Could not read ID token claims: ${e.message}")
-            }
-
             firestore.collection("vereine")
                 .document(paired.vereinId)
                 .collection("transaktionen")
@@ -90,15 +79,11 @@ class TransaktionRepository(
             RecordTransaktionResult.Success
         } catch (e: FirebaseFirestoreException) {
             if (e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
-                Log.w(
-                    "TransaktionRepo",
-                    "PERMISSION_DENIED writing transaktion (vereinId=${paired.vereinId}, geraetId=${paired.geraetId}, uid=$uid): ${e.message}",
-                    e
-                )
+                Log.w("TransaktionRepo", "PERMISSION_DENIED writing transaktion: ${e.message}")
                 sessionRepo.unpair()
                 RecordTransaktionResult.PermissionDeniedUnpaired
             } else {
-                Log.w("TransaktionRepo", "Firestore write failed: ${e.code} ${e.message}", e)
+                Log.w("TransaktionRepo", "Firestore write failed: ${e.code} ${e.message}")
                 RecordTransaktionResult.Failure(e)
             }
         } catch (e: Exception) {

@@ -45,4 +45,16 @@ class SortimentMapperTest {
         val s = SortimentMapper.fromDocument(doc(articleIds = listOf("c", "a", "b")))!!
         assertEquals(listOf("c", "a", "b"), s.articleIds)
     }
+
+    @Test
+    fun `filters non-String articleIds`() {
+        val s = SortimentMapper.fromDocument(doc(articleIds = listOf("a", 123, "b", null)))!!
+        assertEquals(listOf("a", "b"), s.articleIds)
+    }
+
+    @Test
+    fun `dedupes articleIds preserving first occurrence`() {
+        val s = SortimentMapper.fromDocument(doc(articleIds = listOf("a", "b", "a", "c", "b")))!!
+        assertEquals(listOf("a", "b", "c"), s.articleIds)
+    }
 }

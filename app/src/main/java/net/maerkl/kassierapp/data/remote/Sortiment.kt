@@ -11,8 +11,9 @@ data class Sortiment(
 object SortimentMapper {
     fun fromDocument(doc: DocumentSnapshot): Sortiment? {
         val name = doc.getString("name") ?: return null
-        @Suppress("UNCHECKED_CAST")
-        val articleIds = doc.get("articleIds") as? List<String> ?: emptyList()
+        val articleIds = (doc.get("articleIds") as? List<*>).orEmpty()
+            .filterIsInstance<String>()
+            .distinct()
         return Sortiment(id = doc.id, name = name, articleIds = articleIds)
     }
 }

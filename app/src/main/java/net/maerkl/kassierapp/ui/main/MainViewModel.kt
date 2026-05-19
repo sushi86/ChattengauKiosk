@@ -223,6 +223,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun saveSales(paymentMethod: String, txCode: String?) {
+        // Local Room write is the source of truth for refunds and statistics;
+        // a failing Firestore sync surfaces as a snackbar but the local record stays.
+        // The admin can reconcile any drift from the backend side.
         val now = System.currentTimeMillis()
         val cartSnapshot = _cart.value
         val totalEuro = cartTotalCent / 100.0

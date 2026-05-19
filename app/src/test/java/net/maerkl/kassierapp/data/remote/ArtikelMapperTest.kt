@@ -65,4 +65,26 @@ class ArtikelMapperTest {
         val a = ArtikelMapper.fromDocument(doc(emoji = null))!!
         assertNull(a.emoji)
     }
+
+    @Test
+    fun `rejects negative preis`() {
+        assertNull(ArtikelMapper.fromDocument(doc(preis = -1L)))
+    }
+
+    @Test
+    fun `rejects oversized preis`() {
+        assertNull(ArtikelMapper.fromDocument(doc(preis = 1_000_000_01L)))
+    }
+
+    @Test
+    fun `rejects unknown taxRate`() {
+        assertNull(ArtikelMapper.fromDocument(doc(taxRate = 5L)))
+    }
+
+    @Test
+    fun `accepts taxRate 0 7 and 19`() {
+        assertEquals(0, ArtikelMapper.fromDocument(doc(taxRate = 0L))!!.taxRate)
+        assertEquals(7, ArtikelMapper.fromDocument(doc(taxRate = 7L))!!.taxRate)
+        assertEquals(19, ArtikelMapper.fromDocument(doc(taxRate = 19L))!!.taxRate)
+    }
 }
