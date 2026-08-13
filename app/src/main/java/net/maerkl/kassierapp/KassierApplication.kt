@@ -17,6 +17,10 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import net.maerkl.kassierapp.data.local.AppDatabase
 import net.maerkl.kassierapp.data.local.EncryptedDeviceSessionStore
@@ -58,9 +62,10 @@ class KassierApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        FirebaseApp.initializeApp(this)
+        val firebaseApp = FirebaseApp.initializeApp(this)!!
         val appCheck = FirebaseAppCheck.getInstance()
         val providerFactory = if (BuildConfig.DEBUG) {
+            pinDebugAppCheckSecret(firebaseApp)
             DebugAppCheckProviderFactory.getInstance()
         } else {
             PlayIntegrityAppCheckProviderFactory.getInstance()
@@ -70,13 +75,29 @@ class KassierApplication : Application() {
         val auth = FirebaseAuth.getInstance()
         val functions = FirebaseFunctions.getInstance(Config.FIREBASE_FUNCTIONS_REGION)
 
+        val appCheckProvider = AppCheckTokenProvider(appCheck)
+        // Firestore attaches the App Check token lazily and sends the very first
+        // request of a session without one if it isn't cached yet, which our
+        // security rules (request.app != null) reject. Warm the cache here,
+        // before any Firestore listener (catalog, transactions) can start —
+        // covers both the post-pairing flow and cold start while already paired.
+        // Fire-and-forget on a background dispatcher: must NOT block onCreate
+        // (main thread) on a network call, or a slow/offline network causes
+        // an ANR on app launch.
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            try {
+                appCheckProvider.getToken()
+            } catch (e: Exception) {
+                Log.w("KassierApplication", "App Check token pre-fetch failed", e)
+            }
+        }
+
         httpClient = HttpClient(CIO) {
             install(ContentNegotiation) {
                 json(Json { ignoreUnknownKeys = true })
             }
         }
         val backendApi = BackendApi(httpClient, Config.BACKEND_BASE_URL)
-        val appCheckProvider = AppCheckTokenProvider(appCheck)
         val pairingService = FirebasePairingService(functions)
         val sessionStore = EncryptedDeviceSessionStore(this)
 
@@ -113,6 +134,21 @@ class KassierApplication : Application() {
         }
 
         setupKioskMode()
+    }
+
+    // The Firebase App Check debug provider stores its secret in
+    // SharedPreferences ("com.google.firebase.appcheck.debug.store.<persistenceKey>",
+    // key "com.google.firebase.appcheck.debug.DEBUG_SECRET") and generates a
+    // random UUID there if none is set yet — which changes on every reinstall
+    // and would need re-registering in the Firebase Console each time. Pinning
+    // it here keeps it stable across builds/reinstalls of debug test tablets.
+    private fun pinDebugAppCheckSecret(firebaseApp: FirebaseApp) {
+        getSharedPreferences(
+            "com.google.firebase.appcheck.debug.store.${firebaseApp.persistenceKey}",
+            Context.MODE_PRIVATE
+        ).edit()
+            .putString("com.google.firebase.appcheck.debug.DEBUG_SECRET", Config.APP_CHECK_DEBUG_TOKEN)
+            .apply()
     }
 
     private fun setupKioskMode() {

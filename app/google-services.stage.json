@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "740595338285",
+    "project_id": "vereinskasse-stage",
+    "storage_bucket": "vereinskasse-stage.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:740595338285:android:8e6c6f5bd3c298f025fca4",
+        "android_client_info": {
+          "package_name": "net.maerkl.kassierapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBPx-_BrR-wL4yG4APkhA8AK6n5h5dvrfM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
