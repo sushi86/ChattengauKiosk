@@ -9,7 +9,7 @@ import org.junit.Test
 class DeriveStateTest {
 
     private fun art(id: String, aktiv: Boolean = true) =
-        Artikel(id = id, name = id, emoji = null, preisCent = 100, taxRate = 0, aktiv = aktiv)
+        Artikel(id = id, name = id, emoji = null, imagePath = null, preisCent = 100, taxRate = 0, aktiv = aktiv)
     private fun sort(id: String, vararg ids: String) =
         Sortiment(id = id, name = id, articleIds = ids.toList())
 

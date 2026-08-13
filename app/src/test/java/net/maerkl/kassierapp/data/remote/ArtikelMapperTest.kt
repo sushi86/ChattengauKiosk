@@ -13,7 +13,8 @@ class ArtikelMapperTest {
         id: String = "a1",
         name: String? = "Bratwurst",
         emoji: String? = "🌭",
-        preis: Long? = 250L,
+        imagePath: String? = null,
+        preis: Number? = 2.5,
         taxRate: Long? = 7L,
         aktiv: Boolean? = true,
     ): DocumentSnapshot {
@@ -21,7 +22,8 @@ class ArtikelMapperTest {
         every { d.id } returns id
         every { d.getString("name") } returns name
         every { d.getString("emoji") } returns emoji
-        every { d.getLong("preis") } returns preis
+        every { d.getString("imagePath") } returns imagePath
+        every { d.get("preis") } returns preis
         every { d.getLong("taxRate") } returns taxRate
         every { d.getBoolean("aktiv") } returns aktiv
         return d
@@ -68,12 +70,24 @@ class ArtikelMapperTest {
 
     @Test
     fun `rejects negative preis`() {
-        assertNull(ArtikelMapper.fromDocument(doc(preis = -1L)))
+        assertNull(ArtikelMapper.fromDocument(doc(preis = -0.01)))
     }
 
     @Test
     fun `rejects oversized preis`() {
-        assertNull(ArtikelMapper.fromDocument(doc(preis = 1_000_000_01L)))
+        assertNull(ArtikelMapper.fromDocument(doc(preis = 1_000_000.01)))
+    }
+
+    @Test
+    fun `blank imagePath maps to null`() {
+        val a = ArtikelMapper.fromDocument(doc(imagePath = " "))!!
+        assertNull(a.imagePath)
+    }
+
+    @Test
+    fun `imagePath is mapped when present`() {
+        val a = ArtikelMapper.fromDocument(doc(imagePath = "artikel/a1.png"))!!
+        assertEquals("artikel/a1.png", a.imagePath)
     }
 
     @Test

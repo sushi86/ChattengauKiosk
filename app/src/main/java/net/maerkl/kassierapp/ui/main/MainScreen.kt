@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -42,12 +43,19 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.google.firebase.ktx.Firebase
+import com.google.firebase.storage.ktx.storage
+import kotlinx.coroutines.tasks.await
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.Image
@@ -88,6 +96,7 @@ fun MainScreen(
     var currentTime by remember { mutableStateOf("") }
     var showTransactionHistory by remember { mutableStateOf(false) }
     var showSortimentSwitch by remember { mutableStateOf(false) }
+    var showFreierPreis by remember { mutableStateOf(false) }
     val batteryReadings = remember { mutableListOf<Pair<Long, Int>>() }
 
     LaunchedEffect(Unit) {
@@ -275,18 +284,46 @@ fun MainScreen(
 
                 is KassenUiState.Ready -> {
                     Row(modifier = Modifier.fillMaxSize()) {
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(5),
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(state.articles, key = { it.id }) { artikel ->
-                                ArtikelCard(
-                                    artikel = artikel,
-                                    onClick = { viewModel.addToCart(artikel) }
-                                )
+                        val articlesWithFreierPreis = state.articles + MainViewModel.FreierPreisSentinel
+                        BoxWithConstraints(modifier = Modifier.weight(1f)) {
+                            val spacing = 8.dp
+                            val padding = 8.dp
+                            val availW = maxWidth - padding * 2
+                            val availH = maxHeight - padding * 2
+                            val refCardW = (availW - spacing * 4) / 5
+                            val totalItems = articlesWithFreierPreis.size
+
+                            var bestCols = 5
+                            var bestCardW = refCardW
+                            for (cols in 1..8) {
+                                val rows = (totalItems + cols - 1) / cols
+                                val cardW = (availW - spacing * (cols - 1)) / cols
+                                val cardH = (availH - spacing * (rows - 1)) / rows
+                                val size = if (cardW < cardH) cardW else cardH
+                                if (size >= refCardW && size > bestCardW) {
+                                    bestCardW = size
+                                    bestCols = cols
+                                }
+                            }
+                            val scale = (bestCardW / refCardW).coerceIn(1f, 2.5f)
+
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(bestCols),
+                                contentPadding = PaddingValues(padding),
+                                horizontalArrangement = Arrangement.spacedBy(spacing),
+                                verticalArrangement = Arrangement.spacedBy(spacing)
+                            ) {
+                                items(articlesWithFreierPreis, key = { it.id }) { artikel ->
+                                    if (artikel.id == MainViewModel.FREIER_PREIS_SENTINEL_ID) {
+                                        FreierPreisCard(scale = scale, onClick = { showFreierPreis = true })
+                                    } else {
+                                        ArtikelCard(
+                                            artikel = artikel,
+                                            scale = scale,
+                                            onClick = { viewModel.addToCart(artikel) }
+                                        )
+                                    }
+                                }
                             }
                         }
 
@@ -320,10 +357,58 @@ fun MainScreen(
             onDismiss = { showTransactionHistory = false }
         )
     }
+
+    if (showFreierPreis) {
+        FreierPreisDialog(
+            onDismiss = { showFreierPreis = false },
+            onConfirm = { name, preisCent, taxRate ->
+                viewModel.addFreierPreis(name, preisCent, taxRate)
+                showFreierPreis = false
+            },
+        )
+    }
 }
 
 @Composable
-private fun ArtikelCard(artikel: Artikel, onClick: () -> Unit) {
+private fun FreierPreisCard(scale: Float, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8E1))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding((16 * scale).dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier.size((56 * scale).dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(MainViewModel.FREIER_PREIS_EMOJI, fontSize = (40 * scale).sp)
+            }
+            Spacer(modifier = Modifier.height((8 * scale).dp))
+            AutoSizeText(
+                text = MainViewModel.FREIER_PREIS_DEFAULT_NAME,
+                fontWeight = FontWeight.Bold,
+                maxFontSize = (16 * scale).sp,
+                minFontSize = 10.sp
+            )
+            Text(
+                "Preis wählen",
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                fontSize = (14 * scale).sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun ArtikelCard(artikel: Artikel, scale: Float, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -334,23 +419,68 @@ private fun ArtikelCard(artikel: Artikel, onClick: () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding((16 * scale).dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(artikel.emoji ?: "", fontSize = 40.sp)
-            Spacer(modifier = Modifier.height(8.dp))
+            ArtikelImageOrEmoji(artikel, scale = scale)
+            Spacer(modifier = Modifier.height((8 * scale).dp))
             AutoSizeText(
                 text = artikel.name,
                 fontWeight = FontWeight.Bold,
-                maxFontSize = 16.sp,
+                maxFontSize = (16 * scale).sp,
                 minFontSize = 10.sp
             )
             Text(
                 artikel.preisCent.centsToEuroString(),
                 color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                fontSize = (14 * scale).sp
             )
         }
+    }
+}
+
+@Composable
+private fun ArtikelImageOrEmoji(artikel: Artikel, scale: Float) {
+    val imagePath = artikel.imagePath
+    val boxSize = (56 * scale).dp
+    val emojiSize = (40 * scale).sp
+
+    Box(
+        modifier = Modifier.size(boxSize),
+        contentAlignment = Alignment.Center
+    ) {
+        if (imagePath.isNullOrBlank()) {
+            Text(artikel.emoji ?: "📦", fontSize = emojiSize)
+            return@Box
+        }
+
+        val urlState = produceState<String?>(initialValue = null, key1 = imagePath) {
+            value = try {
+                Firebase.storage.reference.child(imagePath).downloadUrl.await().toString()
+            } catch (_: Exception) {
+                null
+            }
+        }
+        val url = urlState.value
+        var loadFailed by remember(imagePath) { mutableStateOf(false) }
+
+        if (url == null || loadFailed) {
+            Text(artikel.emoji ?: "📦", fontSize = emojiSize)
+            return@Box
+        }
+
+        val context = LocalContext.current
+        AsyncImage(
+            model = ImageRequest.Builder(context)
+                .data(url)
+                .crossfade(true)
+                .build(),
+            contentDescription = artikel.name,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+            onError = { loadFailed = true },
+        )
     }
 }
 
@@ -461,6 +591,7 @@ private fun AutoSizeText(
         text = text,
         fontWeight = fontWeight,
         fontSize = fontSize,
+        lineHeight = maxFontSize * 1.2f,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         textAlign = TextAlign.Center,

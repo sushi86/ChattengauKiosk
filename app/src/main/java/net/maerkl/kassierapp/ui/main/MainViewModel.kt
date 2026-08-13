@@ -118,6 +118,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _cart.value = current
     }
 
+    fun addFreierPreis(name: String, preisCent: Long, taxRate: Int) {
+        if (preisCent <= 0) return
+        val finalName = name.trim().ifBlank { FREIER_PREIS_DEFAULT_NAME }
+        val artikel = Artikel(
+            id = "$FREIER_PREIS_ID_PREFIX${java.util.UUID.randomUUID()}",
+            name = finalName,
+            emoji = FREIER_PREIS_EMOJI,
+            imagePath = null,
+            preisCent = preisCent,
+            taxRate = taxRate,
+            aktiv = true,
+        )
+        _cart.value = _cart.value + CartItem(artikel, 1)
+    }
+
+    companion object {
+        const val FREIER_PREIS_SENTINEL_ID = "__freier_preis_sentinel__"
+        const val FREIER_PREIS_ID_PREFIX = "freier-preis-"
+        const val FREIER_PREIS_DEFAULT_NAME = "Freier Preis"
+        const val FREIER_PREIS_EMOJI = "💶"
+
+        val FreierPreisSentinel = Artikel(
+            id = FREIER_PREIS_SENTINEL_ID,
+            name = FREIER_PREIS_DEFAULT_NAME,
+            emoji = FREIER_PREIS_EMOJI,
+            imagePath = null,
+            preisCent = -1L,
+            taxRate = 19,
+            aktiv = true,
+        )
+    }
+
     fun removeFromCart(artikel: Artikel) {
         val current = _cart.value.toMutableList()
         val index = current.indexOfFirst { it.artikel.id == artikel.id }
