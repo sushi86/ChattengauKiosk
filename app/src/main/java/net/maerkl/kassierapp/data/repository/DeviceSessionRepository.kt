@@ -30,6 +30,12 @@ class DeviceSessionRepository(
     private val _pairingState: MutableStateFlow<PairingState> = MutableStateFlow(loadInitial())
     val pairingState: StateFlow<PairingState> = _pairingState.asStateFlow()
     private val unpairMutex = Mutex()
+    private val onUnpairedListeners = mutableListOf<() -> Unit>()
+
+    /** Wird nach erfolgreichem Unpair aufgerufen (z.B. SumUp-SDK-Logout, Token-Cache leeren). */
+    fun addOnUnpairedListener(listener: () -> Unit) {
+        onUnpairedListeners.add(listener)
+    }
 
     private fun loadInitial(): PairingState {
         val v = store.getVereinId()
@@ -47,6 +53,7 @@ class DeviceSessionRepository(
         signOut.signOut()
         store.clear()
         _pairingState.value = PairingState.Unpaired
+        onUnpairedListeners.forEach { it() }
     }
 
     fun currentVereinId(): String? =

@@ -13,14 +13,19 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class SumupTokenResponse(
     @SerialName("access_token") val accessToken: String,
-    @SerialName("expires_in") val expiresIn: Long
+    @SerialName("expires_in") val expiresIn: Long,
+    @SerialName("merchant_code") val merchantCode: String? = null
 )
 
 @Serializable
 private data class ErrorBody(val error: String? = null)
 
 sealed class SumupTokenResult {
-    data class Success(val accessToken: String, val expiresInSeconds: Long) : SumupTokenResult()
+    data class Success(
+        val accessToken: String,
+        val expiresInSeconds: Long,
+        val merchantCode: String? = null
+    ) : SumupTokenResult()
     data object Unauthorized : SumupTokenResult()
     data object DeviceRevoked : SumupTokenResult()
     data object DeviceVereinMismatch : SumupTokenResult()
@@ -49,7 +54,7 @@ class BackendApi(
             }
             if (response.status.isSuccess()) {
                 val body = response.body<SumupTokenResponse>()
-                SumupTokenResult.Success(body.accessToken, body.expiresIn)
+                SumupTokenResult.Success(body.accessToken, body.expiresIn, body.merchantCode)
             } else {
                 mapError(response)
             }

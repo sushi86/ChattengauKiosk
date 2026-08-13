@@ -16,6 +16,12 @@ interface IdTokenSource {
 
 class SumupTokenException(val result: SumupTokenResult) : Exception("SumUp token request failed: $result")
 
+/**
+ * merchantCode ist der SumUp-Merchant, der laut Backend fuer den aktuell
+ * gekoppelten Verein erwartet wird — null, wenn das Backend keinen kennt.
+ */
+data class SumupSession(val accessToken: String, val merchantCode: String?)
+
 class SumupTokenRepository(
     private val api: BackendApi,
     private val idTokenSource: IdTokenSource,
@@ -23,14 +29,16 @@ class SumupTokenRepository(
     private val sessionRepo: DeviceSessionRepository,
     private val clock: Clock = Clock.systemUTC()
 ) {
-    private data class Cached(val token: String, val expiresAt: Instant)
+    private data class Cached(val session: SumupSession, val expiresAt: Instant)
 
     @Volatile private var cache: Cached? = null
     private val mutex = Mutex()
 
-    suspend fun getAccessToken(): String = mutex.withLock {
+    suspend fun getAccessToken(): String = getSession().accessToken
+
+    suspend fun getSession(): SumupSession = mutex.withLock {
         cache?.let {
-            if (it.expiresAt.isAfter(clock.instant().plusSeconds(30))) return it.token
+            if (it.expiresAt.isAfter(clock.instant().plusSeconds(30))) return it.session
         }
         val vereinId = sessionRepo.currentVereinId()
             ?: throw SumupTokenException(SumupTokenResult.Unauthorized)
@@ -60,8 +68,9 @@ class SumupTokenRepository(
 
         when (finalResult) {
             is SumupTokenResult.Success -> {
-                cache = Cached(finalResult.accessToken, clock.instant().plusSeconds(finalResult.expiresInSeconds))
-                finalResult.accessToken
+                val session = SumupSession(finalResult.accessToken, finalResult.merchantCode)
+                cache = Cached(session, clock.instant().plusSeconds(finalResult.expiresInSeconds))
+                session
             }
             else -> throw SumupTokenException(finalResult)
         }

@@ -206,14 +206,47 @@ class MainActivity : ComponentActivity() {
 
     @Suppress("DEPRECATION")
     private fun autoLoginSumUp() {
-        if (SumUpAPI.isLoggedIn()) {
-            sumUpLoggedIn = true
-            return
-        }
         val app = application as KassierApplication
-        if (app.deviceSessionRepository.pairingState.value !is net.maerkl.kassierapp.data.repository.PairingState.Paired) {
+        val paired = app.deviceSessionRepository.pairingState.value is net.maerkl.kassierapp.data.repository.PairingState.Paired
+
+        if (SumUpAPI.isLoggedIn()) {
+            if (!paired) {
+                // Verwaiste SDK-Session ohne Pairing: darf nicht weiterleben,
+                // sonst kassiert das Geraet auf einen alten Merchant.
+                SumUpAPI.logout()
+                sumUpLoggedIn = false
+                return
+            }
+            lifecycleScope.launch {
+                val expected = try {
+                    app.sumupTokenRepository.getSession().merchantCode
+                } catch (e: Exception) {
+                    // Backend nicht erreichbar: Session behalten, der Checkout-Guard
+                    // prueft ohnehin vor jeder Zahlung erneut.
+                    sumUpLoggedIn = true
+                    return@launch
+                }
+                val actual = SumUpAPI.getCurrentMerchant()?.merchantCode
+                when (net.maerkl.kassierapp.data.repository.SumupMerchantGuard.check(expected, actual)) {
+                    net.maerkl.kassierapp.data.repository.MerchantCheck.Mismatch -> {
+                        SumUpAPI.logout()
+                        sumUpLoggedIn = false
+                        Toast.makeText(this@MainActivity, "SumUp-Konto gehört nicht zu diesem Verein – melde neu an", Toast.LENGTH_LONG).show()
+                        loginWithBackendToken()
+                    }
+                    else -> sumUpLoggedIn = true
+                }
+            }
             return
         }
+
+        if (!paired) return
+        loginWithBackendToken()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun loginWithBackendToken() {
+        val app = application as KassierApplication
         lifecycleScope.launch {
             val login = try {
                 val token = app.sumupTokenRepository.getAccessToken()
@@ -244,15 +277,44 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        val payment = SumUpPayment.builder()
-            .total(BigDecimal(amount))
-            .currency(SumUpPayment.Currency.EUR)
-            .title("Spieltag-Verkauf")
-            .skipSuccessScreen()
-            .skipFailedScreen()
-            .build()
+        // Guard vor JEDER Zahlung: der im Reader-SDK eingeloggte Merchant muss
+        // exakt dem entsprechen, den das Backend fuer den gekoppelten Verein
+        // erwartet. Nur bei Match wird kassiert.
+        val app = application as KassierApplication
+        lifecycleScope.launch {
+            val expected = try {
+                app.sumupTokenRepository.getSession().merchantCode
+            } catch (e: Exception) {
+                Toast.makeText(this@MainActivity, "SumUp-Konto nicht überprüfbar: ${e.message}", Toast.LENGTH_LONG).show()
+                mainViewModel?.onPaymentFailed()
+                return@launch
+            }
+            val actual = SumUpAPI.getCurrentMerchant()?.merchantCode
 
-        SumUpAPI.checkout(this@MainActivity, payment, REQUEST_CODE_CHECKOUT)
+            when (net.maerkl.kassierapp.data.repository.SumupMerchantGuard.check(expected, actual)) {
+                net.maerkl.kassierapp.data.repository.MerchantCheck.Match -> {
+                    val payment = SumUpPayment.builder()
+                        .total(BigDecimal(amount))
+                        .currency(SumUpPayment.Currency.EUR)
+                        .title("Spieltag-Verkauf")
+                        .skipSuccessScreen()
+                        .skipFailedScreen()
+                        .build()
+                    SumUpAPI.checkout(this@MainActivity, payment, REQUEST_CODE_CHECKOUT)
+                }
+                net.maerkl.kassierapp.data.repository.MerchantCheck.Mismatch -> {
+                    SumUpAPI.logout()
+                    sumUpLoggedIn = false
+                    Toast.makeText(this@MainActivity, "Zahlung abgebrochen: SumUp-Konto gehört nicht zu diesem Verein. Neu-Anmeldung gestartet.", Toast.LENGTH_LONG).show()
+                    mainViewModel?.onPaymentFailed()
+                    loginWithBackendToken()
+                }
+                net.maerkl.kassierapp.data.repository.MerchantCheck.Unverifiable -> {
+                    Toast.makeText(this@MainActivity, "Zahlung abgebrochen: SumUp-Merchant nicht überprüfbar. Bitte SumUp im Backend neu verbinden.", Toast.LENGTH_LONG).show()
+                    mainViewModel?.onPaymentFailed()
+                }
+            }
+        }
     }
 
     @Suppress("DEPRECATION")
@@ -266,17 +328,7 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "Bitte zuerst Tablet aktivieren", Toast.LENGTH_LONG).show()
             return
         }
-        lifecycleScope.launch {
-            val login = try {
-                val token = app.sumupTokenRepository.getAccessToken()
-                SumUpLogin.builder(net.maerkl.kassierapp.Config.SUMUP_AFFILIATE_KEY)
-                    .accessToken(token).build()
-            } catch (e: Exception) {
-                Toast.makeText(this@MainActivity, "SumUp-Token-Fehler: ${e.message}", Toast.LENGTH_LONG).show()
-                return@launch
-            }
-            SumUpAPI.openLoginActivity(this@MainActivity, login, REQUEST_CODE_LOGIN)
-        }
+        loginWithBackendToken()
     }
 
     private fun openCardReader() {

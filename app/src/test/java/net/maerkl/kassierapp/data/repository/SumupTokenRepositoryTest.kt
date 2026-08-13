@@ -51,6 +51,30 @@ class SumupTokenRepositoryTest {
     }
 
     @Test
+    fun `getSession returns merchant code and caches it with the token`() = runTest {
+        val api = mockk<BackendApi>()
+        coEvery { api.fetchSumupToken(any(), any(), any()) } returns
+            SumupTokenResult.Success("S1", 3540, "M123")
+        val repo = makeRepo(api)
+
+        val session = repo.getSession()
+        assertEquals("S1", session.accessToken)
+        assertEquals("M123", session.merchantCode)
+        assertEquals("M123", repo.getSession().merchantCode)
+        coVerify(exactly = 1) { api.fetchSumupToken(any(), any(), any()) }
+    }
+
+    @Test
+    fun `getSession merchant code is null when backend omits it`() = runTest {
+        val api = mockk<BackendApi>()
+        coEvery { api.fetchSumupToken(any(), any(), any()) } returns
+            SumupTokenResult.Success("S1", 3540, null)
+        val repo = makeRepo(api)
+
+        assertEquals(null, repo.getSession().merchantCode)
+    }
+
+    @Test
     fun `force-refreshes id token once on 401 and retries`() = runTest {
         val api = mockk<BackendApi>()
         coEvery { api.fetchSumupToken(any(), "id-1", any()) } returns SumupTokenResult.Unauthorized

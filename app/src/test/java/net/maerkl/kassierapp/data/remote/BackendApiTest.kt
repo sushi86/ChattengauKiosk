@@ -40,6 +40,27 @@ class BackendApiTest {
     }
 
     @Test
+    fun `200 with merchant_code maps it into Success`() = runTest {
+        val api = api(HttpStatusCode.OK, """{"access_token":"abc","expires_in":3540,"merchant_code":"M123"}""")
+        val result = api.fetchSumupToken("V1", "firebase-id", "appcheck-tok")
+        assertEquals("M123", (result as SumupTokenResult.Success).merchantCode)
+    }
+
+    @Test
+    fun `200 without merchant_code maps to null`() = runTest {
+        val api = api(HttpStatusCode.OK, """{"access_token":"abc","expires_in":3540}""")
+        val result = api.fetchSumupToken("V1", "firebase-id", "appcheck-tok")
+        assertEquals(null, (result as SumupTokenResult.Success).merchantCode)
+    }
+
+    @Test
+    fun `200 with null merchant_code maps to null`() = runTest {
+        val api = api(HttpStatusCode.OK, """{"access_token":"abc","expires_in":3540,"merchant_code":null}""")
+        val result = api.fetchSumupToken("V1", "firebase-id", "appcheck-tok")
+        assertEquals(null, (result as SumupTokenResult.Success).merchantCode)
+    }
+
+    @Test
     fun `sends Authorization and X-Firebase-AppCheck headers`() = runTest {
         var captured: io.ktor.client.request.HttpRequestData? = null
         val api = api(HttpStatusCode.OK, """{"access_token":"a","expires_in":1}""") { captured = it }

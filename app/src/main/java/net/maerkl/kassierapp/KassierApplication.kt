@@ -4,6 +4,7 @@ import android.app.Application
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
+import android.util.Log
 import com.google.firebase.FirebaseApp
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
@@ -98,6 +99,19 @@ class KassierApplication : Application() {
         selectedSortimentStore = EncryptedSelectedSortimentStore(this)
 
         SumUpState.init(this)
+
+        // Das SumUp-Reader-SDK haelt eine eigene, persistente Merchant-Session
+        // auf dem Geraet. Ohne Logout beim Unpair wuerde ein spaeter neu
+        // gekoppelter Verein weiter auf den alten Merchant kassieren.
+        deviceSessionRepository.addOnUnpairedListener {
+            sumupTokenRepository.invalidate()
+            try {
+                com.sumup.merchant.reader.api.SumUpAPI.logout()
+            } catch (e: Exception) {
+                Log.w("KassierApplication", "SumUp logout on unpair failed", e)
+            }
+        }
+
         setupKioskMode()
     }
 

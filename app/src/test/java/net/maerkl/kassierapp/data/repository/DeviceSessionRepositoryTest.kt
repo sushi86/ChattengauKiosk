@@ -45,6 +45,37 @@ class DeviceSessionRepositoryTest {
     }
 
     @Test
+    fun `unpair notifies registered onUnpaired listener`() = runTest {
+        val store = mockk<DeviceSessionStore>(relaxUnitFun = true)
+        every { store.getVereinId() } returns "V1"
+        every { store.getGeraetId() } returns "G1"
+        val signOut = mockk<AuthSignOut>(relaxUnitFun = true)
+        coEvery { signOut.signOut() } returns Unit
+        val repo = DeviceSessionRepository(store, signOut)
+        var notified = 0
+        repo.addOnUnpairedListener { notified++ }
+
+        repo.unpair()
+
+        assertEquals(1, notified)
+    }
+
+    @Test
+    fun `onUnpaired listener not called when already unpaired`() = runTest {
+        val store = mockk<DeviceSessionStore>(relaxUnitFun = true)
+        every { store.getVereinId() } returns null
+        every { store.getGeraetId() } returns null
+        val signOut = mockk<AuthSignOut>(relaxUnitFun = true)
+        val repo = DeviceSessionRepository(store, signOut)
+        var notified = 0
+        repo.addOnUnpairedListener { notified++ }
+
+        repo.unpair()
+
+        assertEquals(0, notified)
+    }
+
+    @Test
     fun `unpair clears store and calls signOut and emits Unpaired`() = runTest {
         val store = mockk<DeviceSessionStore>(relaxUnitFun = true)
         every { store.getVereinId() } returns "V1"
