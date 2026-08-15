@@ -2,8 +2,9 @@ package net.maerkl.kassierapp.ui.main
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -31,7 +32,11 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -56,6 +61,7 @@ import kotlinx.coroutines.tasks.await
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -91,6 +97,7 @@ fun MainScreen(
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val cart by viewModel.cart.collectAsState()
+    val paymentFeedback by viewModel.paymentFeedback.collectAsState()
     var batteryPercent by remember { mutableStateOf(0) }
     var batteryCharging by remember { mutableStateOf(false) }
     var batteryEta by remember { mutableStateOf<String?>(null) }
@@ -341,6 +348,14 @@ fun MainScreen(
                     }
                 }
             }
+
+            // Liegt ueber dem gesamten Kassenbereich — zuletzt in der Box, also oben.
+            paymentFeedback?.let { feedback ->
+                PaymentFeedbackOverlay(
+                    feedback = feedback,
+                    onDismiss = { viewModel.dismissPaymentFeedback() }
+                )
+            }
         }
     }
 
@@ -376,17 +391,15 @@ private fun FreierPreisCard(scale: Float, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(1f)
             .clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8E1))
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .padding((16 * scale).dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
                 modifier = Modifier.size((56 * scale).dp),
@@ -395,18 +408,12 @@ private fun FreierPreisCard(scale: Float, onClick: () -> Unit) {
                 Text(MainViewModel.FREIER_PREIS_EMOJI, fontSize = (40 * scale).sp)
             }
             Spacer(modifier = Modifier.height((8 * scale).dp))
-            Box(
-                modifier = Modifier.height((38 * scale).dp),
-                contentAlignment = Alignment.Center
-            ) {
-                AutoSizeText(
-                    text = MainViewModel.FREIER_PREIS_DEFAULT_NAME,
-                    fontWeight = FontWeight.Bold,
-                    maxFontSize = (16 * scale).sp,
-                    minFontSize = 10.sp,
-                    maxLines = 2
-                )
-            }
+            AutoSizeText(
+                text = MainViewModel.FREIER_PREIS_DEFAULT_NAME,
+                fontWeight = FontWeight.Bold,
+                maxFontSize = (16 * scale).sp,
+                minFontSize = 10.sp
+            )
             Text(
                 "Preis wählen",
                 color = MaterialTheme.colorScheme.primary,
@@ -422,32 +429,24 @@ private fun ArtikelCard(artikel: Artikel, scale: Float, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(1f)
             .clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .padding((16 * scale).dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             ArtikelImageOrEmoji(artikel, scale = scale)
             Spacer(modifier = Modifier.height((8 * scale).dp))
-            Box(
-                modifier = Modifier.height((38 * scale).dp),
-                contentAlignment = Alignment.Center
-            ) {
-                AutoSizeText(
-                    text = artikel.name,
-                    fontWeight = FontWeight.Bold,
-                    maxFontSize = (16 * scale).sp,
-                    minFontSize = 10.sp,
-                    maxLines = 2
-                )
-            }
+            AutoSizeText(
+                text = artikel.name,
+                fontWeight = FontWeight.Bold,
+                maxFontSize = (16 * scale).sp,
+                minFontSize = 10.sp
+            )
             Text(
                 artikel.preisCent.centsToEuroString(),
                 color = MaterialTheme.colorScheme.primary,
@@ -610,6 +609,103 @@ private fun CartPanel(
         }
     }
 }
+
+/**
+ * Grossflaechige Rueckmeldung nach einer Zahlung. Ein Toast geht im
+ * Verkaufsstress unter — darum fuellt diese Einblendung den Kassenbereich,
+ * zeigt ein Symbol, das man aus zwei Metern erkennt, und verschwindet nach
+ * [FEEDBACK_DURATION_MS] von selbst (oder sofort auf Antippen).
+ */
+@Composable
+private fun PaymentFeedbackOverlay(feedback: PaymentFeedback, onDismiss: () -> Unit) {
+    // Der Countdown ist zugleich die Uhr: laeuft er ab, schliesst sich die
+    // Einblendung — so kann Anzeige und tatsaechliche Dauer nicht auseinanderlaufen.
+    var secondsLeft by remember(feedback) { mutableStateOf(FEEDBACK_SECONDS) }
+    LaunchedEffect(feedback) {
+        while (secondsLeft > 0) {
+            delay(1_000L)
+            secondsLeft--
+        }
+        onDismiss()
+    }
+
+    val background = if (feedback.success) Color(0xFF1B7F3B) else Color(0xFFB3261E)
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(background)
+            .clickable(
+                // Kein Ripple/Highlight: die Flaeche ist eine Meldung, kein Button.
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onDismiss
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(200.dp)
+                    .clip(CircleShape)
+                    .background(Color.White),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (feedback.success) Icons.Filled.Check else Icons.Filled.Close,
+                    contentDescription = null,
+                    tint = background,
+                    modifier = Modifier.size(150.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(32.dp))
+            Text(
+                text = feedback.title,
+                color = Color.White,
+                fontSize = 56.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            feedback.detail?.let { detail ->
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = detail,
+                    color = Color.White,
+                    fontSize = 44.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 32.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(40.dp))
+            Box(
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "$secondsLeft",
+                    color = Color.White,
+                    fontSize = 36.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "schließt automatisch · zum Schließen tippen",
+                color = Color.White.copy(alpha = 0.75f),
+                fontSize = 20.sp
+            )
+        }
+    }
+}
+
+private const val FEEDBACK_SECONDS = 3
 
 @Composable
 private fun AutoSizeText(

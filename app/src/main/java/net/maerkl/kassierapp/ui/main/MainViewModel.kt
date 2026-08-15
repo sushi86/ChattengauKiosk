@@ -38,6 +38,16 @@ import net.maerkl.kassierapp.data.repository.PairingState
 
 data class CartItem(val artikel: Artikel, val quantity: Int)
 
+/**
+ * Rueckmeldung zu einer abgeschlossenen Zahlung. Wird als grossflaechige
+ * Vollbild-Einblendung angezeigt: ein kleiner Toast geht im Verkaufsstress unter.
+ */
+data class PaymentFeedback(
+    val success: Boolean,
+    val title: String,
+    val detail: String? = null,
+)
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as KassierApplication
     private val saleDao = app.database.saleDao()
@@ -76,6 +86,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _snackbarMessage = MutableSharedFlow<String>()
     val snackbarMessage = _snackbarMessage.asSharedFlow()
+
+    private val _paymentFeedback = MutableStateFlow<PaymentFeedback?>(null)
+    val paymentFeedback: StateFlow<PaymentFeedback?> = _paymentFeedback.asStateFlow()
+
+    fun dismissPaymentFeedback() {
+        _paymentFeedback.value = null
+    }
 
     val cartTotalCent: Long
         get() = _cart.value.sumOf { it.artikel.preisCent * it.quantity }
@@ -177,19 +194,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun cashPayment() {
         if (_cart.value.isEmpty()) return
+        val amount = cartTotalCent
         saveSales("bar", null)
         clearCart()
-        viewModelScope.launch { _snackbarMessage.emit("Barzahlung erfasst") }
+        _paymentFeedback.value = PaymentFeedback(
+            success = true,
+            title = "Bar kassiert",
+            detail = amount.centsToEuroString(),
+        )
     }
 
     fun onPaymentSuccess(txCode: String? = null) {
+        // Betrag vor dem Leeren des Warenkorbs sichern — er gehoert in die
+        // Rueckmeldung, damit man am Tablet sieht, was gerade kassiert wurde.
+        val amount = cartTotalCent
         saveSales("sumup", txCode)
         clearCart()
-        viewModelScope.launch { _snackbarMessage.emit("Zahlung erfolgreich") }
+        _paymentFeedback.value = PaymentFeedback(
+            success = true,
+            title = "Zahlung erfolgreich",
+            detail = amount.centsToEuroString(),
+        )
     }
 
-    fun onPaymentFailed() {
-        viewModelScope.launch { _snackbarMessage.emit("Zahlung fehlgeschlagen") }
+    fun onPaymentFailed(reason: String? = null) {
+        _paymentFeedback.value = PaymentFeedback(
+            success = false,
+            title = "Zahlung fehlgeschlagen",
+            detail = reason,
+        )
     }
 
     private val _refundInProgress = MutableStateFlow(false)

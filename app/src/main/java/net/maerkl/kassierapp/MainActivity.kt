@@ -325,7 +325,7 @@ class MainActivity : ComponentActivity() {
         val app = application as KassierApplication
         if (app.deviceSessionRepository.pairingState.value !is PairingState.Paired) {
             Toast.makeText(this, "Bitte zuerst Tablet aktivieren", Toast.LENGTH_LONG).show()
-            mainViewModel?.onPaymentFailed()
+            mainViewModel?.onPaymentFailed("Tablet nicht aktiviert")
             return
         }
 
@@ -334,7 +334,7 @@ class MainActivity : ComponentActivity() {
                 app.sumupTokenRepository.getSession()
             } catch (e: Exception) {
                 Toast.makeText(this@MainActivity, "SumUp-Konto nicht überprüfbar: ${e.message}", Toast.LENGTH_LONG).show()
-                mainViewModel?.onPaymentFailed()
+                mainViewModel?.onPaymentFailed("SumUp-Konto nicht überprüfbar")
                 return@launch
             }
             val sdkMerchant = SumUpAPI.getCurrentMerchant()?.merchantCode
@@ -365,12 +365,12 @@ class MainActivity : ComponentActivity() {
                     sumUpLoggedIn = false
                     pendingCheckoutAmount = null
                     Toast.makeText(this@MainActivity, "Zahlung abgebrochen: SumUp-Konto gehört nicht zu diesem Verein. Neu-Anmeldung gestartet.", Toast.LENGTH_LONG).show()
-                    mainViewModel?.onPaymentFailed()
+                    mainViewModel?.onPaymentFailed("Falsches SumUp-Konto")
                     openSumupLogin(action.accessToken)
                 }
                 SumupSessionAction.Blocked -> {
                     Toast.makeText(this@MainActivity, "Zahlung abgebrochen: SumUp-Merchant nicht überprüfbar. Bitte SumUp im Backend neu verbinden.", Toast.LENGTH_LONG).show()
-                    mainViewModel?.onPaymentFailed()
+                    mainViewModel?.onPaymentFailed("SumUp-Merchant nicht überprüfbar")
                 }
             }
         }
@@ -411,7 +411,7 @@ class MainActivity : ComponentActivity() {
                     val txCode = data?.extras?.getString(SumUpAPI.Response.TX_CODE)
                     mainViewModel?.onPaymentSuccess(txCode)
                 } else {
-                    mainViewModel?.onPaymentFailed()
+                    mainViewModel?.onPaymentFailed(data?.extras?.getString(SumUpAPI.Response.MESSAGE))
                     if (SumupSessionPlanner.isSessionExpiredResult(sumUpResult)) {
                         // Das SDK meldete die Session erst beim Kassieren als tot:
                         // Token verwerfen und sofort neu anmelden, damit der naechste
@@ -441,7 +441,7 @@ class MainActivity : ComponentActivity() {
                 } else {
                     lastLoginFailureAt = SystemClock.elapsedRealtime()
                     pendingCardReaderSetup = false
-                    if (resumeAmount != null) mainViewModel?.onPaymentFailed()
+                    if (resumeAmount != null) mainViewModel?.onPaymentFailed("SumUp-Anmeldung fehlgeschlagen")
                     val msg = data?.extras?.getString(SumUpAPI.Response.MESSAGE)
                     Toast.makeText(this, "SumUp Login fehlgeschlagen: ${msg ?: "Unbekannter Fehler"}", Toast.LENGTH_LONG).show()
                 }
