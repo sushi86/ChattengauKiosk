@@ -3,6 +3,7 @@ package net.maerkl.kassierapp.ui.main
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -334,7 +336,7 @@ fun MainScreen(
                             onClear = { viewModel.clearCart() },
                             onCashPayment = { viewModel.cashPayment() },
                             onCheckout = { viewModel.checkout() },
-                            modifier = Modifier.width(300.dp)
+                            modifier = Modifier.width(360.dp)
                         )
                     }
                 }
@@ -374,15 +376,17 @@ private fun FreierPreisCard(scale: Float, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .aspectRatio(1f)
             .clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8E1))
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .padding((16 * scale).dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             Box(
                 modifier = Modifier.size((56 * scale).dp),
@@ -391,12 +395,18 @@ private fun FreierPreisCard(scale: Float, onClick: () -> Unit) {
                 Text(MainViewModel.FREIER_PREIS_EMOJI, fontSize = (40 * scale).sp)
             }
             Spacer(modifier = Modifier.height((8 * scale).dp))
-            AutoSizeText(
-                text = MainViewModel.FREIER_PREIS_DEFAULT_NAME,
-                fontWeight = FontWeight.Bold,
-                maxFontSize = (16 * scale).sp,
-                minFontSize = 10.sp
-            )
+            Box(
+                modifier = Modifier.height((38 * scale).dp),
+                contentAlignment = Alignment.Center
+            ) {
+                AutoSizeText(
+                    text = MainViewModel.FREIER_PREIS_DEFAULT_NAME,
+                    fontWeight = FontWeight.Bold,
+                    maxFontSize = (16 * scale).sp,
+                    minFontSize = 10.sp,
+                    maxLines = 2
+                )
+            }
             Text(
                 "Preis wählen",
                 color = MaterialTheme.colorScheme.primary,
@@ -412,24 +422,32 @@ private fun ArtikelCard(artikel: Artikel, scale: Float, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .aspectRatio(1f)
             .clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .padding((16 * scale).dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             ArtikelImageOrEmoji(artikel, scale = scale)
             Spacer(modifier = Modifier.height((8 * scale).dp))
-            AutoSizeText(
-                text = artikel.name,
-                fontWeight = FontWeight.Bold,
-                maxFontSize = (16 * scale).sp,
-                minFontSize = 10.sp
-            )
+            Box(
+                modifier = Modifier.height((38 * scale).dp),
+                contentAlignment = Alignment.Center
+            ) {
+                AutoSizeText(
+                    text = artikel.name,
+                    fontWeight = FontWeight.Bold,
+                    maxFontSize = (16 * scale).sp,
+                    minFontSize = 10.sp,
+                    maxLines = 2
+                )
+            }
             Text(
                 artikel.preisCent.centsToEuroString(),
                 color = MaterialTheme.colorScheme.primary,
@@ -504,7 +522,7 @@ private fun CartPanel(
             Text(
                 "Warenkorb",
                 fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
+                fontSize = 22.sp,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
@@ -513,25 +531,29 @@ private fun CartPanel(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            // Mindesthoehe: eine Warenkorb-Zeile ist auch ein
+                            // Touch-Ziel (Antippen entfernt eine Position).
+                            .heightIn(min = 56.dp)
                             .background(if (index % 2 == 0) Color(0xFFE3F2FD) else Color.Transparent)
                             .clickable { onRemove(item.artikel) }
-                            .padding(horizontal = 8.dp, vertical = 12.dp),
+                            .padding(horizontal = 8.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             "${item.quantity}× ${item.artikel.name}",
                             modifier = Modifier.weight(1f),
-                            fontSize = 14.sp
+                            fontSize = 18.sp
                         )
                         Text(
                             (item.artikel.preisCent * item.quantity).centsToEuroString(),
-                            fontSize = 14.sp,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(end = 8.dp)
                         )
                         Text(
                             "−",
                             color = MaterialTheme.colorScheme.error,
-                            fontSize = 18.sp,
+                            fontSize = 26.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -543,34 +565,46 @@ private fun CartPanel(
             Text(
                 "Gesamt: ${totalCent.centsToEuroString()}",
                 fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
-                modifier = Modifier.padding(vertical = 4.dp)
+                fontSize = 28.sp,
+                modifier = Modifier.padding(vertical = 8.dp)
             )
 
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Grosse, gut treffbare Zahl-Buttons: das Tablet wird im Stehen,
+            // oft in Handschuhen bedient. "Kassieren" ist die Hauptaktion und
+            // darum am groessten.
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
                     onClick = onCheckout,
                     enabled = !isEmpty,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(84.dp),
+                    contentPadding = PaddingValues(8.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Green900)
                 ) {
-                    Text("💳 Kassieren")
+                    Text("💳 Kassieren", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                 }
                 Button(
                     onClick = onCashPayment,
                     enabled = !isEmpty,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(72.dp),
+                    contentPadding = PaddingValues(8.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
                 ) {
-                    Text("💵 Barzahlung")
+                    Text("💵 Barzahlung", fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 }
                 Button(
                     onClick = onClear,
                     enabled = !isEmpty,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(60.dp),
+                    contentPadding = PaddingValues(8.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("🗑️ Leeren")
+                    Text("🗑️ Leeren", fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -582,7 +616,8 @@ private fun AutoSizeText(
     text: String,
     fontWeight: FontWeight,
     maxFontSize: androidx.compose.ui.unit.TextUnit,
-    minFontSize: androidx.compose.ui.unit.TextUnit
+    minFontSize: androidx.compose.ui.unit.TextUnit,
+    maxLines: Int = 1
 ) {
     var fontSize by remember(text) { mutableStateOf(maxFontSize) }
     var readyToDraw by remember(text) { mutableStateOf(false) }
@@ -592,7 +627,7 @@ private fun AutoSizeText(
         fontWeight = fontWeight,
         fontSize = fontSize,
         lineHeight = maxFontSize * 1.2f,
-        maxLines = 1,
+        maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
         textAlign = TextAlign.Center,
         onTextLayout = { result ->
