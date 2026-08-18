@@ -35,6 +35,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -98,6 +99,7 @@ fun MainScreen(
     val uiState by viewModel.uiState.collectAsState()
     val cart by viewModel.cart.collectAsState()
     val paymentFeedback by viewModel.paymentFeedback.collectAsState()
+    val paymentInProgress by viewModel.paymentInProgress.collectAsState()
     var batteryPercent by remember { mutableStateOf(0) }
     var batteryCharging by remember { mutableStateOf(false) }
     var batteryEta by remember { mutableStateOf<String?>(null) }
@@ -339,6 +341,7 @@ fun MainScreen(
                         CartPanel(
                             cart = cart,
                             totalCent = viewModel.cartTotalCent,
+                            paymentInProgress = paymentInProgress,
                             onRemove = { viewModel.removeFromCart(it) },
                             onClear = { viewModel.clearCart() },
                             onCashPayment = { viewModel.cashPayment() },
@@ -505,6 +508,7 @@ private fun ArtikelImageOrEmoji(artikel: Artikel, scale: Float) {
 private fun CartPanel(
     cart: List<CartItem>,
     totalCent: Long,
+    paymentInProgress: Boolean,
     onRemove: (Artikel) -> Unit,
     onClear: () -> Unit,
     onCashPayment: () -> Unit,
@@ -574,7 +578,9 @@ private fun CartPanel(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
                     onClick = onCheckout,
-                    enabled = !isEmpty,
+                    // Waehrend eine Kartenzahlung laeuft, keinen zweiten Checkout
+                    // zulassen — Doppel-Tap hiess sonst doppelt kassieren.
+                    enabled = !isEmpty && !paymentInProgress,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(84.dp),
@@ -612,24 +618,52 @@ private fun CartPanel(
 
 /**
  * Grossflaechige Rueckmeldung nach einer Zahlung. Ein Toast geht im
- * Verkaufsstress unter — darum fuellt diese Einblendung den Kassenbereich,
- * zeigt ein Symbol, das man aus zwei Metern erkennt, und verschwindet nach
- * [FEEDBACK_DURATION_MS] von selbst (oder sofort auf Antippen).
+ * Verkaufsstress unter — darum fuellt diese Einblendung den Kassenbereich
+ * und zeigt ein Symbol, das man aus zwei Metern erkennt. Erfolg und
+ * Fehlschlag schliessen sich nach einem Countdown von selbst; die beiden
+ * "unklar"-Zustaende bleiben stehen — waehrend der Pruefung laesst sich die
+ * Einblendung bewusst gar nicht wegtippen, damit niemand vorschnell erneut
+ * kassiert.
  */
 @Composable
 private fun PaymentFeedbackOverlay(feedback: PaymentFeedback, onDismiss: () -> Unit) {
+    val background = when (feedback) {
+        is PaymentFeedback.Success -> Color(0xFF1B7F3B)
+        is PaymentFeedback.Failed -> Color(0xFFB3261E)
+        is PaymentFeedback.Verifying, is PaymentFeedback.Unverified -> Color(0xFFB26A00)
+    }
+    val title = when (feedback) {
+        is PaymentFeedback.Success -> feedback.title
+        is PaymentFeedback.Failed -> "Zahlung fehlgeschlagen"
+        is PaymentFeedback.Verifying -> "Zahlungsstatus wird geprüft…"
+        is PaymentFeedback.Unverified -> "Zahlungsstatus unklar"
+    }
+    val detail = when (feedback) {
+        is PaymentFeedback.Success -> feedback.detail
+        is PaymentFeedback.Failed -> feedback.reason
+        is PaymentFeedback.Verifying -> feedback.detail
+        is PaymentFeedback.Unverified -> feedback.detail
+    }
+    val warning = when (feedback) {
+        is PaymentFeedback.Verifying -> "NICHT erneut kassieren!"
+        is PaymentFeedback.Unverified -> "NICHT erneut kassieren!\nZahlung im SumUp-Dashboard prüfen."
+        else -> null
+    }
+    val autoDismiss = feedback is PaymentFeedback.Success || feedback is PaymentFeedback.Failed
+    val dismissible = feedback !is PaymentFeedback.Verifying
+
     // Der Countdown ist zugleich die Uhr: laeuft er ab, schliesst sich die
     // Einblendung — so kann Anzeige und tatsaechliche Dauer nicht auseinanderlaufen.
     var secondsLeft by remember(feedback) { mutableStateOf(FEEDBACK_SECONDS) }
-    LaunchedEffect(feedback) {
-        while (secondsLeft > 0) {
-            delay(1_000L)
-            secondsLeft--
+    if (autoDismiss) {
+        LaunchedEffect(feedback) {
+            while (secondsLeft > 0) {
+                delay(1_000L)
+                secondsLeft--
+            }
+            onDismiss()
         }
-        onDismiss()
     }
-
-    val background = if (feedback.success) Color(0xFF1B7F3B) else Color(0xFFB3261E)
 
     Box(
         modifier = Modifier
@@ -639,6 +673,7 @@ private fun PaymentFeedbackOverlay(feedback: PaymentFeedback, onDismiss: () -> U
                 // Kein Ripple/Highlight: die Flaeche ist eine Meldung, kein Button.
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
+                enabled = dismissible,
                 onClick = onDismiss
             ),
         contentAlignment = Alignment.Center
@@ -654,25 +689,36 @@ private fun PaymentFeedbackOverlay(feedback: PaymentFeedback, onDismiss: () -> U
                     .background(Color.White),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = if (feedback.success) Icons.Filled.Check else Icons.Filled.Close,
-                    contentDescription = null,
-                    tint = background,
-                    modifier = Modifier.size(150.dp)
-                )
+                when (feedback) {
+                    is PaymentFeedback.Verifying -> CircularProgressIndicator(
+                        color = background,
+                        strokeWidth = 10.dp,
+                        modifier = Modifier.size(130.dp)
+                    )
+                    else -> Icon(
+                        imageVector = when (feedback) {
+                            is PaymentFeedback.Success -> Icons.Filled.Check
+                            is PaymentFeedback.Failed -> Icons.Filled.Close
+                            else -> Icons.Filled.Warning
+                        },
+                        contentDescription = null,
+                        tint = background,
+                        modifier = Modifier.size(150.dp)
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(32.dp))
             Text(
-                text = feedback.title,
+                text = title,
                 color = Color.White,
                 fontSize = 56.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
-            feedback.detail?.let { detail ->
+            detail?.let {
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = detail,
+                    text = it,
                     color = Color.White,
                     fontSize = 44.sp,
                     fontWeight = FontWeight.Bold,
@@ -680,24 +726,41 @@ private fun PaymentFeedbackOverlay(feedback: PaymentFeedback, onDismiss: () -> U
                     modifier = Modifier.padding(horizontal = 32.dp)
                 )
             }
-            Spacer(modifier = Modifier.height(40.dp))
-            Box(
-                modifier = Modifier
-                    .size(72.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.2f)),
-                contentAlignment = Alignment.Center
-            ) {
+            warning?.let {
+                Spacer(modifier = Modifier.height(24.dp))
                 Text(
-                    text = "$secondsLeft",
+                    text = it,
                     color = Color.White,
-                    fontSize = 36.sp,
-                    fontWeight = FontWeight.Bold
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 32.dp)
                 )
+            }
+            if (autoDismiss) {
+                Spacer(modifier = Modifier.height(40.dp))
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "$secondsLeft",
+                        color = Color.White,
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = "schließt automatisch · zum Schließen tippen",
+                text = when {
+                    autoDismiss -> "schließt automatisch · zum Schließen tippen"
+                    dismissible -> "zum Schließen tippen"
+                    else -> "bitte warten…"
+                },
                 color = Color.White.copy(alpha = 0.75f),
                 fontSize = 20.sp
             )

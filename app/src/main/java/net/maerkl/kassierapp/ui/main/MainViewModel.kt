@@ -35,18 +35,28 @@ import net.maerkl.kassierapp.data.remote.RecordTransaktionResult
 import net.maerkl.kassierapp.data.remote.Sortiment
 import net.maerkl.kassierapp.data.remote.TransaktionItem
 import net.maerkl.kassierapp.data.repository.PairingState
+import net.maerkl.kassierapp.data.repository.SumupTransactionVerifier
+import net.maerkl.kassierapp.data.repository.VerificationOutcome
 
 data class CartItem(val artikel: Artikel, val quantity: Int)
 
 /**
- * Rueckmeldung zu einer abgeschlossenen Zahlung. Wird als grossflaechige
- * Vollbild-Einblendung angezeigt: ein kleiner Toast geht im Verkaufsstress unter.
+ * Rueckmeldung zu einer Zahlung. Wird als grossflaechige Vollbild-Einblendung
+ * angezeigt: ein kleiner Toast geht im Verkaufsstress unter. Neben Erfolg und
+ * Fehlschlag gibt es zwei "unklar"-Zustaende: waehrend der Statuspruefung und
+ * wenn sie ergebnislos blieb — beide duerfen NIE als Fehlschlag erscheinen,
+ * sonst wird doppelt kassiert.
  */
-data class PaymentFeedback(
-    val success: Boolean,
-    val title: String,
-    val detail: String? = null,
-)
+sealed class PaymentFeedback {
+    data class Success(val title: String, val detail: String? = null) : PaymentFeedback()
+    data class Failed(val reason: String? = null) : PaymentFeedback()
+
+    /** Ausgang unbekannt, Statuspruefung laeuft — nicht wegklickbar. */
+    data class Verifying(val detail: String? = null) : PaymentFeedback()
+
+    /** Statuspruefung ergebnislos — Kassierer muss im SumUp-Dashboard nachsehen. */
+    data class Unverified(val detail: String? = null) : PaymentFeedback()
+}
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as KassierApplication
@@ -90,7 +100,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _paymentFeedback = MutableStateFlow<PaymentFeedback?>(null)
     val paymentFeedback: StateFlow<PaymentFeedback?> = _paymentFeedback.asStateFlow()
 
+    /** Laeuft gerade ein Kartenzahlvorgang (inkl. Statuspruefung)? Sperrt "Kassieren". */
+    private val _paymentInProgress = MutableStateFlow(false)
+    val paymentInProgress: StateFlow<Boolean> = _paymentInProgress.asStateFlow()
+
     fun dismissPaymentFeedback() {
+        // Waehrend der Statuspruefung gibt es nichts zu bestaetigen — die
+        // Einblendung bleibt, bis der Ausgang feststeht.
+        if (_paymentFeedback.value is PaymentFeedback.Verifying) return
         _paymentFeedback.value = null
     }
 
@@ -184,8 +201,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun clearCart() { _cart.value = emptyList() }
 
     fun checkout() {
+        // Ein Doppel-Tap darf keinen zweiten Checkout starten — zwei parallele
+        // SumUp-Aufrufe sind ein direkter Weg zur Doppelabbuchung.
+        if (_paymentInProgress.value) return
         val totalCent = cartTotalCent
         if (totalCent > 0) {
+            _paymentInProgress.value = true
             viewModelScope.launch {
                 _checkoutAmount.emit(totalCent / 100.0)
             }
@@ -197,11 +218,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val amount = cartTotalCent
         saveSales("bar", null)
         clearCart()
-        _paymentFeedback.value = PaymentFeedback(
-            success = true,
-            title = "Bar kassiert",
-            detail = amount.centsToEuroString(),
-        )
+        _paymentFeedback.value = PaymentFeedback.Success("Bar kassiert", amount.centsToEuroString())
+        logPaymentEvent(amount, "bar", "erfolg")
     }
 
     fun onPaymentSuccess(txCode: String? = null) {
@@ -210,19 +228,99 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val amount = cartTotalCent
         saveSales("sumup", txCode)
         clearCart()
-        _paymentFeedback.value = PaymentFeedback(
-            success = true,
-            title = "Zahlung erfolgreich",
-            detail = amount.centsToEuroString(),
+        _paymentInProgress.value = false
+        _paymentFeedback.value = PaymentFeedback.Success("Zahlung erfolgreich", amount.centsToEuroString())
+        logPaymentEvent(amount, "sumup", "erfolg", txCode = txCode)
+    }
+
+    fun onPaymentFailed(reason: String? = null, sumupResultCode: Int? = null) {
+        _paymentInProgress.value = false
+        _paymentFeedback.value = PaymentFeedback.Failed(reason)
+        logPaymentEvent(
+            betragCent = cartTotalCent,
+            zahlungsart = "sumup",
+            ergebnis = "fehler",
+            sumupResultCode = sumupResultCode,
+            fehlerDetail = reason,
         )
     }
 
-    fun onPaymentFailed(reason: String? = null) {
-        _paymentFeedback.value = PaymentFeedback(
-            success = false,
-            title = "Zahlung fehlgeschlagen",
-            detail = reason,
-        )
+    /**
+     * Das SDK kennt den Ausgang der Zahlung nicht (Verbindungsabbruch mitten in
+     * der Transaktion). Die Abbuchung kann trotzdem durchgegangen sein — darum
+     * wird der Status ueber die SumUp-API nachgeprueft statt einen Fehler zu
+     * zeigen, auf den hin erneut kassiert wuerde.
+     */
+    fun onPaymentUnknown(foreignTransactionId: String?) {
+        val amount = cartTotalCent
+        _paymentFeedback.value = PaymentFeedback.Verifying(amount.centsToEuroString())
+        viewModelScope.launch {
+            when (val outcome = verifyUnknownPayment(foreignTransactionId)) {
+                is VerificationOutcome.Confirmed -> {
+                    saveSales("sumup", outcome.transactionCode)
+                    clearCart()
+                    _paymentFeedback.value =
+                        PaymentFeedback.Success("Zahlung erfolgreich", amount.centsToEuroString())
+                    logPaymentEvent(
+                        amount, "sumup", "unbekannt_verifiziert_erfolg",
+                        txCode = outcome.transactionCode, foreignTransactionId = foreignTransactionId,
+                    )
+                }
+                VerificationOutcome.ConfirmedFailed -> {
+                    _paymentFeedback.value = PaymentFeedback.Failed("Zahlung nicht zustande gekommen")
+                    logPaymentEvent(
+                        amount, "sumup", "unbekannt_verifiziert_fehler",
+                        foreignTransactionId = foreignTransactionId,
+                    )
+                }
+                VerificationOutcome.Unverifiable -> {
+                    _paymentFeedback.value = PaymentFeedback.Unverified(amount.centsToEuroString())
+                    logPaymentEvent(
+                        amount, "sumup", "unbekannt_nicht_klaerbar",
+                        foreignTransactionId = foreignTransactionId,
+                    )
+                }
+            }
+            _paymentInProgress.value = false
+        }
+    }
+
+    private fun logPaymentEvent(
+        betragCent: Long,
+        zahlungsart: String,
+        ergebnis: String,
+        sumupResultCode: Int? = null,
+        sumupMessage: String? = null,
+        txCode: String? = null,
+        foreignTransactionId: String? = null,
+        fehlerDetail: String? = null,
+    ) {
+        viewModelScope.launch {
+            app.zahlungsprotokollRepository.logEvent(
+                betragCent = betragCent,
+                zahlungsart = zahlungsart,
+                ergebnis = ergebnis,
+                sumupResultCode = sumupResultCode,
+                sumupMessage = sumupMessage,
+                txCode = txCode,
+                foreignTransactionId = foreignTransactionId,
+                fehlerDetail = fehlerDetail,
+            )
+        }
+    }
+
+    private suspend fun verifyUnknownPayment(foreignTransactionId: String?): VerificationOutcome {
+        if (foreignTransactionId == null) return VerificationOutcome.Unverifiable
+        val session = try {
+            app.sumupTokenRepository.getSession()
+        } catch (e: Exception) {
+            return VerificationOutcome.Unverifiable
+        }
+        val merchantCode = session.merchantCode ?: return VerificationOutcome.Unverifiable
+        // ~60 Sekunden Budget: 15 Versuche im 4-Sekunden-Takt.
+        return SumupTransactionVerifier.verify(maxAttempts = 15, delayMs = 4_000) {
+            app.sumupTransactionStatusApi.fetchStatus(merchantCode, foreignTransactionId, session.accessToken)
+        }
     }
 
     private val _refundInProgress = MutableStateFlow(false)

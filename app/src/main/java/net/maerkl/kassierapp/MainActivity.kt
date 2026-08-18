@@ -33,6 +33,8 @@ import com.sumup.merchant.reader.api.SumUpAPI
 import com.sumup.merchant.reader.api.SumUpLogin
 import com.sumup.merchant.reader.api.SumUpPayment
 import kotlinx.coroutines.launch
+import net.maerkl.kassierapp.data.repository.CheckoutResultClassifier
+import net.maerkl.kassierapp.data.repository.CheckoutVerdict
 import net.maerkl.kassierapp.data.repository.PairingState
 import net.maerkl.kassierapp.data.repository.SumupSessionAction
 import net.maerkl.kassierapp.data.repository.SumupSessionPlanner
@@ -50,6 +52,10 @@ class MainActivity : ComponentActivity() {
 
         /** Nach einem fehlgeschlagenen Login nicht sofort wieder automatisch anmelden. */
         private const val LOGIN_RETRY_COOLDOWN_MS = 60_000L
+
+        /** SDK-Nachpruefung bei Verbindungsabbruch: alle 2 s, maximal 60 s. */
+        private const val CHECKOUT_POLLING_INTERVAL_MS = 2_000L
+        private const val CHECKOUT_MAX_WAITING_TIME_MS = 60_000L
     }
 
     private var pendingCardReaderSetup = false
@@ -63,6 +69,13 @@ class MainActivity : ComponentActivity() {
 
     /** Zahlung, die wegen abgelaufener SumUp-Session auf den Re-Login wartet. */
     private var pendingCheckoutAmount: Double? = null
+
+    /**
+     * Eigene ID der zuletzt gestarteten Kartenzahlung. Meldet das SDK den
+     * Ausgang als unbekannt, laesst sich damit ueber die SumUp-API klaeren,
+     * ob abgebucht wurde — ohne ID gaebe es nichts zum Nachschlagen.
+     */
+    private var lastCheckoutForeignTxId: String? = null
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -343,10 +356,21 @@ class MainActivity : ComponentActivity() {
                 is SumupSessionAction.Refresh -> {
                     SumUpAPI.updateAccessToken(action.accessToken)
                     sumUpLoggedIn = true
+                    val foreignTxId = java.util.UUID.randomUUID().toString()
+                    lastCheckoutForeignTxId = foreignTxId
                     val payment = SumUpPayment.builder()
                         .total(BigDecimal(amount))
                         .currency(SumUpPayment.Currency.EUR)
                         .title("Spieltag-Verkauf")
+                        .foreignTransactionId(foreignTxId)
+                        // Erst diese Policy schaltet ERROR_UNKNOWN_TRANSACTION_STATUS
+                        // frei: bei Verbindungsabbruch pollt das SDK selbst nach,
+                        // statt eine durchgegangene Zahlung als Fehlschlag zu melden.
+                        .configureRetryPolicy(
+                            CHECKOUT_POLLING_INTERVAL_MS,
+                            CHECKOUT_MAX_WAITING_TIME_MS,
+                            true,
+                        )
                         .skipSuccessScreen()
                         .skipFailedScreen()
                         .build()
@@ -406,20 +430,37 @@ class MainActivity : ComponentActivity() {
 
         when (requestCode) {
             REQUEST_CODE_CHECKOUT -> {
-                val sumUpResult = data?.extras?.getInt(SumUpAPI.Response.RESULT_CODE)
-                if (sumUpResult == SumUpAPI.Response.ResultCode.SUCCESSFUL) {
-                    val txCode = data?.extras?.getString(SumUpAPI.Response.TX_CODE)
-                    mainViewModel?.onPaymentSuccess(txCode)
+                // Fehlt der Result-Code (Extras weg, z. B. nach Prozess-Tod), ist
+                // der Ausgang unbekannt — getInt() wuerde 0 liefern und faelschlich
+                // als Fehlschlag gelten.
+                val extras = data?.extras
+                val sumUpResult = if (extras?.containsKey(SumUpAPI.Response.RESULT_CODE) == true) {
+                    extras.getInt(SumUpAPI.Response.RESULT_CODE)
                 } else {
-                    mainViewModel?.onPaymentFailed(data?.extras?.getString(SumUpAPI.Response.MESSAGE))
-                    if (SumupSessionPlanner.isSessionExpiredResult(sumUpResult)) {
-                        // Das SDK meldete die Session erst beim Kassieren als tot:
-                        // Token verwerfen und sofort neu anmelden, damit der naechste
-                        // Versuch durchgeht.
-                        sumUpLoggedIn = false
-                        (application as KassierApplication).sumupTokenRepository.invalidate()
-                        Toast.makeText(this, "SumUp-Sitzung abgelaufen – melde neu an…", Toast.LENGTH_SHORT).show()
-                        loginWithBackendToken()
+                    null
+                }
+                val foreignTxId = lastCheckoutForeignTxId
+                lastCheckoutForeignTxId = null
+                when (val verdict = CheckoutResultClassifier.classify(sumUpResult)) {
+                    CheckoutVerdict.Success -> {
+                        val txCode = extras?.getString(SumUpAPI.Response.TX_CODE)
+                        mainViewModel?.onPaymentSuccess(txCode)
+                    }
+                    CheckoutVerdict.Unknown -> mainViewModel?.onPaymentUnknown(foreignTxId)
+                    is CheckoutVerdict.Failed -> {
+                        mainViewModel?.onPaymentFailed(
+                            reason = extras?.getString(SumUpAPI.Response.MESSAGE),
+                            sumupResultCode = sumUpResult,
+                        )
+                        if (verdict.sessionExpired) {
+                            // Das SDK meldete die Session erst beim Kassieren als tot:
+                            // Token verwerfen und sofort neu anmelden, damit der naechste
+                            // Versuch durchgeht.
+                            sumUpLoggedIn = false
+                            (application as KassierApplication).sumupTokenRepository.invalidate()
+                            Toast.makeText(this, "SumUp-Sitzung abgelaufen – melde neu an…", Toast.LENGTH_SHORT).show()
+                            loginWithBackendToken()
+                        }
                     }
                 }
             }

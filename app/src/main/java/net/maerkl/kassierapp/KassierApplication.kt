@@ -30,9 +30,11 @@ import net.maerkl.kassierapp.data.preferences.SettingsDataStore
 import net.maerkl.kassierapp.data.remote.AppCheckTokenProvider
 import net.maerkl.kassierapp.data.remote.ArtikelRepository
 import net.maerkl.kassierapp.data.remote.BackendApi
+import net.maerkl.kassierapp.data.remote.SumupTransactionStatusApi
 import net.maerkl.kassierapp.data.remote.FirebasePairingService
 import net.maerkl.kassierapp.data.remote.SortimentRepository
 import net.maerkl.kassierapp.data.remote.TransaktionRepository
+import net.maerkl.kassierapp.data.remote.ZahlungsprotokollRepository
 import net.maerkl.kassierapp.data.repository.DeviceSessionRepository
 import net.maerkl.kassierapp.data.repository.FirebaseAuthSignOut
 import net.maerkl.kassierapp.data.repository.FirebaseIdTokenSource
@@ -50,7 +52,11 @@ class KassierApplication : Application() {
         private set
     lateinit var sumupTokenRepository: SumupTokenRepository
         private set
+    lateinit var sumupTransactionStatusApi: SumupTransactionStatusApi
+        private set
     lateinit var transaktionRepository: TransaktionRepository
+        private set
+    lateinit var zahlungsprotokollRepository: ZahlungsprotokollRepository
         private set
     lateinit var artikelRepository: ArtikelRepository
         private set
@@ -98,6 +104,7 @@ class KassierApplication : Application() {
             }
         }
         val backendApi = BackendApi(httpClient, Config.BACKEND_BASE_URL)
+        sumupTransactionStatusApi = SumupTransactionStatusApi(httpClient)
         val pairingService = FirebasePairingService(functions)
         val sessionStore = EncryptedDeviceSessionStore(this)
 
@@ -111,6 +118,11 @@ class KassierApplication : Application() {
         )
         val firestore = FirebaseFirestore.getInstance()
         transaktionRepository = TransaktionRepository(
+            firestore = firestore,
+            auth = auth,
+            sessionRepo = deviceSessionRepository,
+        )
+        zahlungsprotokollRepository = ZahlungsprotokollRepository(
             firestore = firestore,
             auth = auth,
             sessionRepo = deviceSessionRepository,
